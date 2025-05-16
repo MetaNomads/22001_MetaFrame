@@ -39,13 +39,25 @@ namespace MetaFrame.Data
         /*=========================================================================================================================*/
         private IEnumerator Record()
         {
+            yield return null;
+            //yield return new WaitForSeconds(5);
             // This loop runs indefinitely
             while (startRecord)
             {
-                WriteToCSV(Path.Combine(sessionPath, "FACS.csv"), _dataManager.FACSNameList(), _dataManager.FACSValueList());
-                WriteToCSV(Path.Combine(sessionPath, "Body.csv"), _dataManager.BodyNameList(), _dataManager.BodyValueList());
-                WriteToCSV(Path.Combine(sessionPath, "LeftHand.csv"), _dataManager.LeftHandNameList(), _dataManager.LeftHandValueList());
-                WriteToCSV(Path.Combine(sessionPath, "RightHand.csv"), _dataManager.RightHandNameList(), _dataManager.RightHandValueList());
+                try
+                {
+                    WriteToCSV(Path.Combine(sessionPath, "FACS.csv"), _dataManager.FACSNameList(), _dataManager.FACSValueList());
+                    WriteToCSV(Path.Combine(sessionPath, "Body.csv"), _dataManager.BodyNameList(), _dataManager.BodyValueList());
+                    WriteToCSV(Path.Combine(sessionPath, "LeftHand.csv"), _dataManager.LeftHandNameList(), _dataManager.LeftHandValueList());
+                    WriteToCSV(Path.Combine(sessionPath, "RightHand.csv"), _dataManager.RightHandNameList(), _dataManager.RightHandValueList());
+                }
+                catch (Exception e)
+                {
+                    print("Likely an issue with initialization is causing the functions not to complete properly.");
+                    Debug.Log("Recording Data Still Initializing. Did not write to CSV.");
+                }
+
+
 
                 // Wait for "interval" second before the next write
                 yield return new WaitForSeconds(interval / 1000f);
@@ -54,8 +66,12 @@ namespace MetaFrame.Data
 
         public void WriteToCSV(string filePath, List<string>? nameList, List<object>? valueList)
         {
+
+
+            
             if (_dataManager.BodyNameList() != null)
             {
+
                 // Prepend "time" and encapsulate fields as necessary
                 string headerLine = "time," + string.Join(",", string.Join(",", nameList.Select(o => ConvertAndEncapsulate(o))));
                 string valueLine = Time.time.ToString() + "," + string.Join(",", valueList.Select(o => ConvertAndEncapsulate(o)));
@@ -69,6 +85,7 @@ namespace MetaFrame.Data
                     }
                     writer.WriteLine(valueLine);
                 }
+
             }
         }
 
