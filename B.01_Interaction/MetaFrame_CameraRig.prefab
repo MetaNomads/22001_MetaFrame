@@ -679,8 +679,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 5358949225952875474}
+  m_Children: []
   m_Father: {fileID: 6763043490249715028}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &4698314316761680011
@@ -1336,8 +1335,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _dataManager: {fileID: 5323837779022574545}
   _savePath: /Data
-  interval: 80
-  startRecord: 1
+  _folderPrefix: Test
+  _recordingIntervalMilliseconds: 10
+  _decimalPrecision: 4
+  _minBatchSize: 10
+  _maxBatchSize: 20
 --- !u!1 &2168146861921518554
 GameObject:
   m_ObjectHideFlags: 0
@@ -5722,248 +5724,6 @@ MonoBehaviour:
   _processLateUpdates: 0
   _handedness: 0
   _trackingToWorldTransformer: {fileID: 4232981811571955366}
---- !u!1 &7454233560580338202
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 5358949225952875474}
-  - component: {fileID: 8658596720479611908}
-  m_Layer: 0
-  m_Name: OVRbodyDisplay
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &5358949225952875474
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7454233560580338202}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 5447193849738959461}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &8658596720479611908
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7454233560580338202}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f7ef839cc9cacff4091af449079bbce3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _whenToRender: 2
-  _visualizationGuideType: 1
-  _maskToVisualize: {fileID: 31900000, guid: 8267e3d56146c7e43bd0296dc7f86558, type: 2}
-  _customBoneVisualData:
-    BoneTuples:
-    - FirstBone: 1
-      SecondBone: 2
-      Hide: 0
-    - FirstBone: 1
-      SecondBone: 70
-      Hide: 0
-    - FirstBone: 1
-      SecondBone: 77
-      Hide: 0
-    - FirstBone: 2
-      SecondBone: 3
-      Hide: 0
-    - FirstBone: 3
-      SecondBone: 4
-      Hide: 0
-    - FirstBone: 4
-      SecondBone: 5
-      Hide: 0
-    - FirstBone: 5
-      SecondBone: 6
-      Hide: 0
-    - FirstBone: 5
-      SecondBone: 8
-      Hide: 0
-    - FirstBone: 5
-      SecondBone: 13
-      Hide: 0
-    - FirstBone: 6
-      SecondBone: 7
-      Hide: 0
-    - FirstBone: 8
-      SecondBone: 10
-      Hide: 0
-    - FirstBone: 10
-      SecondBone: 11
-      Hide: 0
-    - FirstBone: 11
-      SecondBone: 19
-      Hide: 0
-    - FirstBone: 13
-      SecondBone: 15
-      Hide: 0
-    - FirstBone: 15
-      SecondBone: 16
-      Hide: 0
-    - FirstBone: 16
-      SecondBone: 45
-      Hide: 0
-    - FirstBone: 19
-      SecondBone: 20
-      Hide: 0
-    - FirstBone: 20
-      SecondBone: 21
-      Hide: 0
-    - FirstBone: 21
-      SecondBone: 22
-      Hide: 0
-    - FirstBone: 22
-      SecondBone: 23
-      Hide: 0
-    - FirstBone: 19
-      SecondBone: 25
-      Hide: 0
-    - FirstBone: 25
-      SecondBone: 26
-      Hide: 0
-    - FirstBone: 26
-      SecondBone: 27
-      Hide: 0
-    - FirstBone: 27
-      SecondBone: 28
-      Hide: 0
-    - FirstBone: 19
-      SecondBone: 25
-      Hide: 0
-    - FirstBone: 30
-      SecondBone: 31
-      Hide: 0
-    - FirstBone: 31
-      SecondBone: 32
-      Hide: 0
-    - FirstBone: 32
-      SecondBone: 33
-      Hide: 0
-    - FirstBone: 19
-      SecondBone: 34
-      Hide: 0
-    - FirstBone: 35
-      SecondBone: 36
-      Hide: 0
-    - FirstBone: 36
-      SecondBone: 37
-      Hide: 0
-    - FirstBone: 37
-      SecondBone: 38
-      Hide: 0
-    - FirstBone: 19
-      SecondBone: 40
-      Hide: 0
-    - FirstBone: 40
-      SecondBone: 41
-      Hide: 0
-    - FirstBone: 41
-      SecondBone: 42
-      Hide: 0
-    - FirstBone: 42
-      SecondBone: 43
-      Hide: 0
-    - FirstBone: 45
-      SecondBone: 46
-      Hide: 0
-    - FirstBone: 46
-      SecondBone: 47
-      Hide: 0
-    - FirstBone: 47
-      SecondBone: 48
-      Hide: 0
-    - FirstBone: 48
-      SecondBone: 49
-      Hide: 0
-    - FirstBone: 45
-      SecondBone: 51
-      Hide: 0
-    - FirstBone: 51
-      SecondBone: 52
-      Hide: 0
-    - FirstBone: 52
-      SecondBone: 53
-      Hide: 0
-    - FirstBone: 53
-      SecondBone: 54
-      Hide: 0
-    - FirstBone: 45
-      SecondBone: 56
-      Hide: 0
-    - FirstBone: 56
-      SecondBone: 57
-      Hide: 0
-    - FirstBone: 57
-      SecondBone: 58
-      Hide: 0
-    - FirstBone: 58
-      SecondBone: 59
-      Hide: 0
-    - FirstBone: 45
-      SecondBone: 61
-      Hide: 0
-    - FirstBone: 61
-      SecondBone: 62
-      Hide: 0
-    - FirstBone: 62
-      SecondBone: 63
-      Hide: 0
-    - FirstBone: 63
-      SecondBone: 64
-      Hide: 0
-    - FirstBone: 45
-      SecondBone: 66
-      Hide: 0
-    - FirstBone: 66
-      SecondBone: 67
-      Hide: 0
-    - FirstBone: 67
-      SecondBone: 68
-      Hide: 0
-    - FirstBone: 68
-      SecondBone: 69
-      Hide: 0
-    - FirstBone: 70
-      SecondBone: 71
-      Hide: 0
-    - FirstBone: 71
-      SecondBone: 73
-      Hide: 0
-    - FirstBone: 73
-      SecondBone: 76
-      Hide: 0
-    - FirstBone: 77
-      SecondBone: 78
-      Hide: 0
-    - FirstBone: 78
-      SecondBone: 80
-      Hide: 0
-    - FirstBone: 80
-      SecondBone: 83
-      Hide: 0
-  _lineRendererPrefab: {fileID: 7812178534108119229, guid: bbe388be32004224ab1080fe7e0135bf,
-    type: 3}
-  _axisRendererPrefab: {fileID: 106719106145556050, guid: 6d7f1ebf8de071940b3db9320f9386b8,
-    type: 3}
-  _visualType: 0
-  _ovrSkeletonComp: {fileID: 4698314316761680011}
-  _visualizeBindPose: 0
 --- !u!1 &7472058548581569078
 GameObject:
   m_ObjectHideFlags: 0
@@ -8669,9 +8429,49 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
         type: 3}
+      propertyPath: dataManager
+      value: 
+      objectReference: {fileID: 5323837779022574545}
+    - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: _faceExpressions
+      value: 
+      objectReference: {fileID: 7339166914199697631}
+    - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
       propertyPath: _ovrFaceExpressions
       value: 
       objectReference: {fileID: 7339166914199697631}
+    - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: RecordConfig.AU53_HeadUp
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: RecordConfig.AU51_TurnLeft
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: RecordConfig.AU54_HeadDown
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: RecordConfig.AU55_TiltLeft
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: RecordConfig.AU52_TurnRight
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2127306871927279255, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: RecordConfig.AU56_TiltRight
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4322961761100800552, guid: 772b49d7ace4cf149b25058ee453f914,
         type: 3}
       propertyPath: m_Name
@@ -8682,6 +8482,41 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 5176397424678068691, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: _leftHand
+      value: 
+      objectReference: {fileID: 6055139789936623659}
+    - target: {fileID: 5176397424678068691, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: _rightHand
+      value: 
+      objectReference: {fileID: 3761852323208927994}
+    - target: {fileID: 5176397424678068691, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: dataManager
+      value: 
+      objectReference: {fileID: 5323837779022574545}
+    - target: {fileID: 5176397424678068691, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: _leftFingerFeatureStateProvider
+      value: 
+      objectReference: {fileID: 8432179084483708415}
+    - target: {fileID: 5176397424678068691, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: _rightFingerFeatureStateProvider
+      value: 
+      objectReference: {fileID: 1529530061415800622}
+    - target: {fileID: 5176397424678068691, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: _leftTransformFeatureStateProvider
+      value: 
+      objectReference: {fileID: 2369463190177738782}
+    - target: {fileID: 5176397424678068691, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: _rightTransformFeatureStateProvider
+      value: 
+      objectReference: {fileID: 4674423570547436239}
     - target: {fileID: 5613541114612866630, guid: 772b49d7ace4cf149b25058ee453f914,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -8957,6 +8792,11 @@ PrefabInstance:
       propertyPath: _OVRHmd
       value: 
       objectReference: {fileID: 5840148929937755162}
+    - target: {fileID: 8975402696883404208, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: dataManager
+      value: 
+      objectReference: {fileID: 5323837779022574545}
     - target: {fileID: 8975402696883404208, guid: 772b49d7ace4cf149b25058ee453f914,
         type: 3}
       propertyPath: _fullBodySkeleton
