@@ -16,8 +16,12 @@ using System.IO;
         private OVRPlugin.EyeGazesState gazeState = new OVRPlugin.EyeGazesState();
         private OVRPlugin.EyeGazesState _currentEyeGazesState;
         
+        //Referenced for recording the data
+        public Vector3 leftEyeDirectionGazeForRecording = Vector3.zero;
+        public Vector3 rightEyeDirectionGazeForRecording = Vector3.zero;
+        public Vector3 combinedEyeDirectionGazeForRecording = Vector3.zero;
 
-        void Start()
+    void Start()
         {
             if (!isEnabled)
             {
@@ -96,9 +100,13 @@ using System.IO;
             Vector3 leftOrigin = leftPose.position;
             Vector3 leftDir = (leftPose.orientation * Vector3.forward).normalized;
 
+        leftEyeDirectionGazeForRecording = leftDir;
+
+
             Vector3 rightOrigin = rightPose.position;
             Vector3 rightDir = (rightPose.orientation * Vector3.forward).normalized;
 
+        rightEyeDirectionGazeForRecording = rightDir;
 
             //intersection implementation
             float tL, tR;
@@ -114,6 +122,7 @@ using System.IO;
                 Vector3 pointA = leftOrigin + tL * leftDir;
                 Vector3 pointB = rightOrigin + tR * rightDir;
                 fixation = (pointA + pointB) * 0.5f;
+            combinedEyeDirectionGazeForRecording = fixation;
                 Debug.Log("pointA value: " + pointA + " pointB value: " + pointB + "Fixation value: " + fixation);
             }
             else

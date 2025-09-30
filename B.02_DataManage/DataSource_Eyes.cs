@@ -14,6 +14,9 @@ namespace MetaFrame.Data
         public override string SourceName => "Eyes";
         private bool _eyeTrackingFunctional = false;
 
+        //Used for gaze reference
+        public GazeRayCombined gazeRayCombined;
+
         private void Start()
         {
             // start eye tracking
@@ -26,6 +29,9 @@ namespace MetaFrame.Data
             {
                 _eyeTrackingFunctional = true;
             }
+
+         
+            gazeRayCombined = GameObject.FindAnyObjectByType<GazeRayCombined>();
         }
 
         protected override DataStructure CreateData()
@@ -37,10 +43,12 @@ namespace MetaFrame.Data
 
         public override Dictionary<string, object> CollectData()
         {
+
+            Debug.Log("Eye Referenced");
             var data = new Dictionary<string, object>();
 
             //In case there is a way to ensure the eye tracker is functional, add it here.
-            if (_eyeTrackingFunctional)
+            if (true)
             {
                 //Left Eye Vector
                 if (RecordConfig.leftEyeDir)
@@ -102,6 +110,26 @@ namespace MetaFrame.Data
             private Vector3 GetVectorData(Eye_Options eyeOption)
             {
 
+
+
+                switch (eyeOption)
+                {
+                    case Eye_Options.Left:
+                        return _source.gazeRayCombined.leftEyeDirectionGazeForRecording;
+                    case Eye_Options.Right:
+                        return _source.gazeRayCombined.rightEyeDirectionGazeForRecording;
+                    case Eye_Options.Combined:
+                        return _source.gazeRayCombined.combinedEyeDirectionGazeForRecording;
+                    default:
+                        Debug.LogError("Eye option not found!");
+                        return Vector3.zero;
+                }
+
+
+
+                /*
+
+                Debug.Log("Eye here");
 
                 //Find and return the gaze data
                 OVRPlugin.EyeGazesState _currentEyeGazesState = new OVRPlugin.EyeGazesState();
@@ -202,12 +230,12 @@ namespace MetaFrame.Data
             }
 
 
+            */
 
 
 
 
-
-
+            }
 
 
 

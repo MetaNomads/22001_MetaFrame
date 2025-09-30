@@ -260,7 +260,9 @@ namespace MetaFrame.Data
             {
                 try
                 {
+                    Debug.Log("The source being tested is: " +  dataSource.SourceName);
                     var sourceData = dataSource.CollectData();
+                    Debug.Log("The source: " + dataSource.SourceName + " has " + sourceData.Count + " options");
                     if (sourceData.Count > 0)
                     {
                         // Create new dictionary with timestamp first
