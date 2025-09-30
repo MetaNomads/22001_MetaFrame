@@ -12,7 +12,21 @@ namespace MetaFrame.Data
 
         [SerializeField] internal OVRPlugin.EyeGazesState _eyeGazeState;
         public override string SourceName => "Eyes";
+        private bool _eyeTrackingFunctional = false;
 
+        private void Start()
+        {
+            // start eye tracking
+            if (!OVRPlugin.StartEyeTracking())
+            {
+                _eyeTrackingFunctional = false;
+                Debug.LogError("Failed to start eye tracking!");
+            }
+            else
+            {
+                _eyeTrackingFunctional = true;
+            }
+        }
 
         protected override DataStructure CreateData()
         {
@@ -26,7 +40,7 @@ namespace MetaFrame.Data
             var data = new Dictionary<string, object>();
 
             //In case there is a way to ensure the eye tracker is functional, add it here.
-            if (true)
+            if (_eyeTrackingFunctional)
             {
                 //Left Eye Vector
                 if (RecordConfig.leftEyeDir)
@@ -37,7 +51,7 @@ namespace MetaFrame.Data
                 {
                     data["rightEyeDir"] = GetPositionData(Data.RightEyeVector);
                 }
-                if (RecordConfig.combinedDir)
+                if (RecordConfig.combinedEyeDir)
                 {
                     data["combinedEyeDir"] = GetPositionData(Data.CombinedEyeVector);
                 }
@@ -56,7 +70,7 @@ namespace MetaFrame.Data
 
         /*=========================================================================================================================*/
         /// <summary>
-        /// Eyes Data Structure - Clean property-based access for consistent static typing
+        /// Eyes Data Structure - Clean property-based access for consistent typing
         /// </summary>
 
         public class DataStructure
@@ -215,9 +229,13 @@ namespace MetaFrame.Data
         [Serializable]
         public class RecordingConfig
         {
+            [Header("Eye Options")]
+            [Tooltip("LeftEyeDir")]
             public bool leftEyeDir = true;
+            [Tooltip("RightEyeDir")]
             public bool rightEyeDir = true;
-            public bool combinedDir = true;
+            [Tooltip("CombinedEyeDir")]
+            public bool combinedEyeDir = true;
         }
 
 
