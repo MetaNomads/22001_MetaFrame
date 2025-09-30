@@ -20,6 +20,7 @@ namespace MetaFrame.Data
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Hand Hand;
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_FACS FACS;
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Body Body;
+        [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Eyes Eyes;
 
         // Plugin architecture for extensibility
         internal List<IDataSource> _dataSources = new List<IDataSource>();
@@ -28,6 +29,7 @@ namespace MetaFrame.Data
         public DataSource_FACS.DataStructure FACSData => FACS?.Data;
         public DataSource_Body.DataStructure BodyData => Body?.Data;
         public DataSource_Hand.DataStructure HandData => Hand?.Data;
+        public DataSource_Eyes.DataStructure EyesData => Eyes?.Data;
 
         protected virtual void Start()
         {
@@ -43,6 +45,7 @@ namespace MetaFrame.Data
             if (Hand != null) Hand.Initialize(this);
             if (FACS != null) FACS.Initialize(this);
             if (Body != null) Body.Initialize(this);
+            if (Eyes != null) Eyes.Initialize(this);
         }
 
         /// <summary>
