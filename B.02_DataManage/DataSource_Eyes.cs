@@ -99,7 +99,19 @@ namespace MetaFrame.Data
 
             //Combined Eyes
             public Vector3 CombinedEyePosition => CalculateCombinedEyePosition();
-            public Vector3 CombinedEyeGazeVector => Vector3.zero;
+            public Vector3 CombinedEyeGazeVector => CalculateCombinedGazeVector();
+
+            public Vector3 CalculateCombinedGazeVector()
+            {
+
+                // get head position rotation
+                Vector3 headPosition = Camera.main.transform.position;
+                Quaternion headRotation = Camera.main.transform.rotation;
+
+                return (headRotation * (CombinedEyePosition - Vector3.zero).normalized).normalized;
+            }
+
+
 
             public Vector3 CalculateCombinedEyePosition()
             {
