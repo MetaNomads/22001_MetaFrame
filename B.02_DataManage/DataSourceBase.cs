@@ -72,16 +72,16 @@ namespace MetaFrame.Data
             };
         }
         /// <summary>
-        // Utility for extracting transform data with an additional vector
+        // Utility for extracting transform data with an additional gaze vector
         /// <summary>
-        protected object GetTransformData(Transform transform, string additionalVectorTitle, Vector3 additionalVector)
+        protected object GetTransformDataWithGaze(Transform transform, Vector3 gazeVector)
         {
             if (transform == null) return null;
             return new
             {
                 Position = new float[] { transform.position.x, transform.position.y, transform.position.z },
                 Rotation = new float[] { transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w },
-                additionalVectorTitle = new float[] { transform.position.x, transform.position.y, transform.position.z }
+                Gaze_Vector = new float[] { transform.position.x, transform.position.y, transform.position.z }
             };
         }
         /// <summary>
@@ -96,6 +96,18 @@ namespace MetaFrame.Data
         {
             if (position == null) return null;
             return new float[] { position.x, position.y, position.z };
+        }
+        /// <summary>
+        // Utility for extracting position data with an additional Gaze Vector
+        /// <summary>
+        protected object GetPositionDataWithGaze(Vector3 transform, Vector3 gazeVector)
+        {
+            if (transform == null) return null;
+            return new
+            {
+                Position = new float[] { transform.x, transform.y, transform.z },
+                Gaze_Vector = new float[] { gazeVector.x, gazeVector.y, gazeVector.z }
+            };
         }
         /// <summary>
         // Utility for extracting rotation data
