@@ -72,6 +72,19 @@ namespace MetaFrame.Data
             };
         }
         /// <summary>
+        // Utility for extracting transform data with an additional vector
+        /// <summary>
+        protected object GetTransformData(Transform transform, string additionalVectorTitle, Vector3 additionalVector)
+        {
+            if (transform == null) return null;
+            return new
+            {
+                Position = new float[] { transform.position.x, transform.position.y, transform.position.z },
+                Rotation = new float[] { transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w },
+                additionalVectorTitle = new float[] { transform.position.x, transform.position.y, transform.position.z }
+            };
+        }
+        /// <summary>
         // Utility for extracting position data
         /// <summary>
         protected object GetPositionData(Transform transform)
@@ -166,5 +179,7 @@ namespace MetaFrame.Data
         //         return defaultValue;
         //     }
         // }
+
+
     }
 }

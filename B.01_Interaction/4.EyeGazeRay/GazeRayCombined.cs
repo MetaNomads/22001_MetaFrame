@@ -16,10 +16,10 @@ using System.IO;
         private OVRPlugin.EyeGazesState gazeState = new OVRPlugin.EyeGazesState();
         private OVRPlugin.EyeGazesState _currentEyeGazesState;
         
-        //Referenced for recording the data
-        public Vector3 leftEyeDirectionGazeForRecording = Vector3.zero;
-        public Vector3 rightEyeDirectionGazeForRecording = Vector3.zero;
-        public Vector3 combinedEyeDirectionGazeForRecording = Vector3.zero;
+        //Referenced for recording the data in DataSource_Eyes.cs
+        public static Vector3 leftEyeDirectionGazeForRecording = Vector3.zero;
+        public static Vector3 rightEyeDirectionGazeForRecording = Vector3.zero;
+        public static Vector3 combinedEyeDirectionGazeForRecording = Vector3.zero;
 
     void Start()
         {
