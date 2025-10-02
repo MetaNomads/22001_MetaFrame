@@ -11,21 +11,12 @@ namespace MetaFrame.Data
     {
 
         public override string SourceName => "Eyes";
-        private bool _eyeTrackingFunctional = false;
 
-        [SerializeField] internal OVREyeGaze _leftEyeGaze;
-        [SerializeField] internal OVREyeGaze _rightEyeGaze;
-
-
-
-        public void Update()
-        {
-            Debug.Log("Left eye transform: " + _leftEyeGaze.gameObject.name + " - " + _leftEyeGaze.transform.position + " Rotation: " + _leftEyeGaze.transform.rotation + " orientation: " + _leftEyeGaze.transform.forward);
-        }
+        [SerializeField] internal OVREyes _ovrEyes;
 
         protected override DataStructure CreateData()
         {
-            return new DataStructure(this, _leftEyeGaze, _rightEyeGaze);
+            return new DataStructure(this, _ovrEyes);
         }
 
 
@@ -73,81 +64,31 @@ namespace MetaFrame.Data
         public class DataStructure
         {
             private readonly DataSource_Eyes _source;
-            private readonly OVREyeGaze _rightEye;
-            private readonly OVREyeGaze _leftEye;
+            private readonly OVREyes _ovrEyes;
 
 
 
             //Data referenced from the GazeRayCombined script as to avoid overlap and ensure updates are occuring in a single script.
-            public DataStructure(DataSource_Eyes source, OVREyeGaze leftEye, OVREyeGaze rightEye)
+            public DataStructure(DataSource_Eyes source, OVREyes ovrEyes)
             {
                 _source = source;
-                _leftEye = leftEye;
-                _rightEye = rightEye;
+                _ovrEyes = ovrEyes;
             }
 
             //Left Eye
-            
-            public Transform LeftEyeTransform => _leftEye.transform;
-            public Vector3 LeftEyeGazeVector => _leftEye.transform.forward;
+            public Transform LeftEyeTransform => _ovrEyes.GetEyeTransform(OVREyes.Eye.Left);
+            public Vector3 LeftEyeGazeVector => _ovrEyes.GetGazeVector(OVREyes.Eye.Left);
 
 
             //Right Eye
-            public Transform RightEyeTransform => _rightEye.transform;
-            public Vector3 RightEyeGazeVector => _rightEye.transform.forward;
+            public Transform RightEyeTransform => _ovrEyes.GetEyeTransform(OVREyes.Eye.Right);
+            public Vector3 RightEyeGazeVector => _ovrEyes.GetGazeVector(OVREyes.Eye.Right);
 
 
             //Combined Eyes
-            public Vector3 CombinedEyePosition => CalculateCombinedEyePosition();
-            public Vector3 CombinedEyeGazeVector => CalculateCombinedGazeVector();
+            public Vector3 CombinedEyePosition => _ovrEyes.CalculateCombinedEyePosition();
+            public Vector3 CombinedEyeGazeVector => _ovrEyes.CalculateCombinedGazeVector();
 
-            public Vector3 CalculateCombinedGazeVector()
-            {
-
-                // get head position rotation
-                Vector3 headPosition = Camera.main.transform.position;
-                Quaternion headRotation = Camera.main.transform.rotation;
-
-                return (headRotation * (CombinedEyePosition - Vector3.zero).normalized).normalized;
-            }
-
-
-
-            public Vector3 CalculateCombinedEyePosition()
-            {
-
-                Vector3 combinedEyePosition = Vector3.zero;
-                float tLeft;
-                float tRight;
-
-                Vector3 originDelta = _leftEye.transform.position - _rightEye.transform.position;
-                tLeft = 0.0f;
-                tRight = 0.0f;
-
-                //Dot Products
-                float r4dotr4 = Vector3.Dot(_rightEye.transform.forward, _rightEye.transform.forward);     // R4톀4
-                float r2dotr2 = Vector3.Dot(_leftEye.transform.forward, _leftEye.transform.forward);       // R2톀2
-                float r2dotr4 = Vector3.Dot(_leftEye.transform.forward, _rightEye.transform.forward);      // R2톀4
-
-                // check denominator: (R2톀4)^2 - (R2톀2)(R4톀4)
-                float denom = Mathf.Pow(r2dotr4, 2f) - (r2dotr2 * r4dotr4);
-                if (r2dotr4 < Mathf.Epsilon || Mathf.Abs(denom) < Mathf.Epsilon)
-                    return Vector3.zero;
-
-                tRight = ((Vector3.Dot(originDelta, _leftEye.transform.forward) * r4dotr4 -
-                Vector3.Dot(originDelta, _rightEye.transform.forward) * r2dotr4)) / denom;
-
-                tLeft = (Vector3.Dot(originDelta, _leftEye.transform.forward) + tRight * r2dotr2) / r2dotr4;
-
-                Vector3 pointA = _leftEye.transform.position + tLeft * _leftEye.transform.forward;
-                Vector3 pointB = _rightEye.transform.position + tRight * _rightEye.transform.forward;
-                combinedEyePosition = (pointA + pointB) * 0.5f;
-
-
-
-                return combinedEyePosition;
-
-            }
 
         }
 

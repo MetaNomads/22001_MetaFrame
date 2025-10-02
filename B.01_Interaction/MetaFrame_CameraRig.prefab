@@ -481,6 +481,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8664519572879504131}
+  - component: {fileID: 8353667264200152830}
   m_Layer: 0
   m_Name: OVREyes
   m_TagString: Untagged
@@ -505,6 +506,20 @@ Transform:
   - {fileID: 7720877048218156891}
   m_Father: {fileID: 6763043490249715028}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8353667264200152830
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 969132073543550532}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3344c5ae0bff7d64c8e33d8417c08bb9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _leftEyeGaze: {fileID: 9167383428569391859}
+  _rightEyeGaze: {fileID: 1268545003376666294}
 --- !u!1 &1031129492830994568
 GameObject:
   m_ObjectHideFlags: 0
