@@ -8622,6 +8622,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3797346655847545116, guid: 772b49d7ace4cf149b25058ee453f914,
         type: 3}
+      propertyPath: _ovrEyes
+      value: 
+      objectReference: {fileID: 8353667264200152830}
+    - target: {fileID: 3797346655847545116, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
       propertyPath: _leftEyeGaze
       value: 
       objectReference: {fileID: 9167383428569391859}
