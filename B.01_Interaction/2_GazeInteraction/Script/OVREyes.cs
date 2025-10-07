@@ -48,12 +48,21 @@ public class OVREyes : MonoBehaviour
 
     public Vector3 CalculateCombinedGazeVector()
     {
+        // Get the midpoint between the two eyes
+        Vector3 eyeOrigin = (_leftEyeGaze.transform.position + _rightEyeGaze.transform.position) * 0.5f;
+        // Get the combined fixation point
+        Vector3 fixationPoint = CalculateCombinedEyePosition();
+        // Calculate direction from eye origin to fixation point
+        Vector3 gazeDirection = (fixationPoint - eyeOrigin).normalized;
 
-        // get head position rotation
-        Vector3 headPosition = Camera.main.transform.position;
-        Quaternion headRotation = Camera.main.transform.rotation;
+        return gazeDirection;
 
-        return (headRotation * (CalculateCombinedEyePosition() - Vector3.zero).normalized).normalized;
+
+        //// get head position rotation
+        //Vector3 headPosition = Camera.main.transform.position;
+        //Quaternion headRotation = Camera.main.transform.rotation;
+
+        //return (headRotation * (CalculateCombinedEyePosition() - Vector3.zero).normalized).normalized;
     }
 
     public Vector3 CalculateCombinedEyePosition()
