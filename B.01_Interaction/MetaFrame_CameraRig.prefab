@@ -520,6 +520,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _leftEyeGaze: {fileID: 9167383428569391859}
   _rightEyeGaze: {fileID: 1268545003376666294}
+  _body: {fileID: 0}
+  _face: {fileID: 7339166914199697631}
 --- !u!1 &1031129492830994568
 GameObject:
   m_ObjectHideFlags: 0

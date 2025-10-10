@@ -1,3 +1,4 @@
+using Meta.WitAi;
 using UnityEngine;
 
 public class OVREyes : MonoBehaviour
@@ -13,6 +14,9 @@ public class OVREyes : MonoBehaviour
     [SerializeField] private OVREyeGaze _leftEyeGaze;
 
     [SerializeField] private OVREyeGaze _rightEyeGaze;
+
+    [SerializeField] private OVRBody _body;
+    [SerializeField] private OVRFaceExpressions _face;
 
     public Transform GetEyeTransform(Eye eye)
     {
@@ -48,15 +52,23 @@ public class OVREyes : MonoBehaviour
 
     public Vector3 CalculateCombinedGazeVector()
     {
-        // Get the midpoint between the two eyes
+        /*// Get the midpoint between the two eyes
         Vector3 eyeOrigin = (_leftEyeGaze.transform.position + _rightEyeGaze.transform.position) * 0.5f;
         // Get the combined fixation point
         Vector3 fixationPoint = CalculateCombinedEyePosition();
         // Calculate direction from eye origin to fixation point
         Vector3 gazeDirection = (fixationPoint - eyeOrigin).normalized;
 
-        return gazeDirection;
+        return gazeDirection; */
 
+
+        // get head position rotation
+        //Vector3 headPosition = _face.transform.position; ;
+        Quaternion headRotation = _face.transform.rotation;
+
+        
+
+        return (headRotation * (CalculateCombinedEyePosition() - Vector3.zero).normalized).normalized;
 
         //// get head position rotation
         //Vector3 headPosition = Camera.main.transform.position;
