@@ -17,13 +17,18 @@ public class OVREyes : MonoBehaviour
     [SerializeField] private OVRBody _body;
     [SerializeField] private OVRFaceExpressions _face;
 
+    [SerializeField]
+    private OVRCameraRig _cameraRig;
+
     public Transform GetEyeTransform(Eye eye)
     {
         switch (eye)
         {
             case Eye.Left:
+                Debug.Log("Left eye transform rotation from camera " + _cameraRig.leftEyeAnchor.rotation);
                 return _leftEyeGaze.transform;
             case Eye.Right:
+                Debug.Log("Right eye transform rotation from camera " + _cameraRig.rightEyeAnchor.rotation);
                 return _rightEyeGaze.transform;
             case Eye.Combined:
                 Debug.LogWarning("Combined eye does not have a single transform.");
@@ -51,23 +56,24 @@ public class OVREyes : MonoBehaviour
 
     public Vector3 CalculateCombinedGazeVector()
     {
-        /*// Get the midpoint between the two eyes
+        /// Get the midpoint between the two eyes
         Vector3 eyeOrigin = (_leftEyeGaze.transform.position + _rightEyeGaze.transform.position) * 0.5f;
         // Get the combined fixation point
         Vector3 fixationPoint = CalculateCombinedEyePosition();
         // Calculate direction from eye origin to fixation point
         Vector3 gazeDirection = (fixationPoint - eyeOrigin).normalized;
 
-        return gazeDirection; */
+
+        return gazeDirection; 
 
 
         // get head position rotation
         //Vector3 headPosition = _face.transform.position; ;
-        Quaternion headRotation = _face.transform.rotation;
+        //Quaternion headRotation = _face.transform.rotation;
 
         
 
-        return (headRotation * (CalculateCombinedEyePosition() - Vector3.zero).normalized).normalized;
+        //return (headRotation * (CalculateCombinedEyePosition() - Vector3.zero).normalized).normalized;
 
         //// get head position rotation
         //Vector3 headPosition = Camera.main.transform.position;

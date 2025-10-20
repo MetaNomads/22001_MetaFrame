@@ -149,7 +149,7 @@ namespace MetaFrame.Data
                 if (RecordConfig.AU43_EyesClosed)
                 {
                     var au61 = Data.AU43_EyesClosed;
-                    data["AU43_EyesClosed"] = new { EyesLookLeftL = au61.EyesClosedL, EyesLookLeftR = au61.EyesClosedR };
+                    data["AU43_EyesClosed"] = new { EyesClosedL = au61.EyesClosedL, EyesClosedR = au61.EyesClosedR };
                 }
 
                 if (RecordConfig.AU61_EyesLookLeft)
