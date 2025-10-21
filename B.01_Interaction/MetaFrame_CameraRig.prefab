@@ -523,7 +523,7 @@ MonoBehaviour:
   _rightEyeGaze: {fileID: 1268545003376666294}
   _body: {fileID: 0}
   _face: {fileID: 7339166914199697631}
-  _cameraRig: {fileID: 0}
+  _cameraRig: {fileID: 5049539361551710258}
 --- !u!114 &1988250716885883755
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -541,7 +541,7 @@ MonoBehaviour:
   gazeDebugSphere: {fileID: 0}
   smoothingFactor: 0.7
   positionThreshold: 0.01
-  oVREyes: {fileID: 8353667264200152830}
+  ovrGaze: {fileID: 8353667264200152830}
 --- !u!1 &1031129492830994568
 GameObject:
   m_ObjectHideFlags: 0
@@ -8808,6 +8808,11 @@ PrefabInstance:
     - target: {fileID: 3797346655847545116, guid: 772b49d7ace4cf149b25058ee453f914,
         type: 3}
       propertyPath: _ovrEyes
+      value: 
+      objectReference: {fileID: 8353667264200152830}
+    - target: {fileID: 3797346655847545116, guid: 772b49d7ace4cf149b25058ee453f914,
+        type: 3}
+      propertyPath: _ovrGaze
       value: 
       objectReference: {fileID: 8353667264200152830}
     - target: {fileID: 3797346655847545116, guid: 772b49d7ace4cf149b25058ee453f914,

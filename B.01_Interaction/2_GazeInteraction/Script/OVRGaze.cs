@@ -18,17 +18,17 @@ public class OVRGaze : MonoBehaviour
     [SerializeField] private OVRFaceExpressions _face;
 
     [SerializeField]
-    private OVRCameraRig _cameraRig;
+    private GameObject _cameraRig;
 
     public Transform GetEyeTransform(Eye eye)
     {
         switch (eye)
         {
             case Eye.Left:
-                Debug.Log("Left eye transform rotation from camera " + _cameraRig.leftEyeAnchor.rotation);
+                Debug.Log("Left eye transform rotation from camera " + _cameraRig.transform.rotation);
                 return _leftEyeGaze.transform;
             case Eye.Right:
-                Debug.Log("Right eye transform rotation from camera " + _cameraRig.rightEyeAnchor.rotation);
+                Debug.Log("Right eye transform rotation from camera " + _cameraRig.transform.rotation);
                 return _rightEyeGaze.transform;
             case Eye.Combined:
                 Debug.LogWarning("Combined eye does not have a single transform.");
@@ -87,6 +87,9 @@ public class OVRGaze : MonoBehaviour
 
         Transform leftEye = _leftEyeGaze.transform;
         Transform rightEye = _rightEyeGaze.transform;
+
+        leftEye.rotation = Quaternion.Euler(leftEye.rotation.eulerAngles + _cameraRig.transform.rotation.eulerAngles);
+        rightEye.rotation = Quaternion.Euler(rightEye.rotation.eulerAngles + _cameraRig.transform.rotation.eulerAngles);
 
         Vector3 combinedEyePosition = Vector3.zero;
         float tLeft;
