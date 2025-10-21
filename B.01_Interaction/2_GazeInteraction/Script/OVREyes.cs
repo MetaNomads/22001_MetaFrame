@@ -85,31 +85,34 @@ public class OVREyes : MonoBehaviour
     public Vector3 CalculateCombinedEyePosition()
     {
 
+        Transform leftEye = _leftEyeGaze.transform;
+        Transform rightEye = _rightEyeGaze.transform;
+
         Vector3 combinedEyePosition = Vector3.zero;
         float tLeft;
         float tRight;
 
-        Vector3 originDelta = _leftEyeGaze.transform.position - _rightEyeGaze.transform.position;
+        Vector3 originDelta = leftEye.transform.position - rightEye.transform.position;
         tLeft = 0.0f;
         tRight = 0.0f;
 
         //Dot Products
-        float r4dotr4 = Vector3.Dot(_rightEyeGaze.transform.forward, _rightEyeGaze.transform.forward);     // R4톀4
-        float r2dotr2 = Vector3.Dot(_leftEyeGaze.transform.forward, _leftEyeGaze.transform.forward);       // R2톀2
-        float r2dotr4 = Vector3.Dot(_leftEyeGaze.transform.forward, _rightEyeGaze.transform.forward);      // R2톀4
+        float r4dotr4 = Vector3.Dot(rightEye.transform.forward, rightEye.transform.forward);     // R4톀4
+        float r2dotr2 = Vector3.Dot(leftEye.transform.forward, leftEye.transform.forward);       // R2톀2
+        float r2dotr4 = Vector3.Dot(leftEye.transform.forward, rightEye.transform.forward);      // R2톀4
 
         // check denominator: (R2톀4)^2 - (R2톀2)(R4톀4)
         float denom = Mathf.Pow(r2dotr4, 2f) - (r2dotr2 * r4dotr4);
         if (r2dotr4 < Mathf.Epsilon || Mathf.Abs(denom) < Mathf.Epsilon)
             return Vector3.zero;
 
-        tRight = ((Vector3.Dot(originDelta, _leftEyeGaze.transform.forward) * r4dotr4 -
-        Vector3.Dot(originDelta, _rightEyeGaze.transform.forward) * r2dotr4)) / denom;
+        tRight = ((Vector3.Dot(originDelta, leftEye.transform.forward) * r4dotr4 -
+        Vector3.Dot(originDelta, rightEye.transform.forward) * r2dotr4)) / denom;
 
-        tLeft = (Vector3.Dot(originDelta, _leftEyeGaze.transform.forward) + tRight * r2dotr2) / r2dotr4;
+        tLeft = (Vector3.Dot(originDelta, leftEye.transform.forward) + tRight * r2dotr2) / r2dotr4;
 
-        Vector3 pointA = _leftEyeGaze.transform.position + tLeft * _leftEyeGaze.transform.forward;
-        Vector3 pointB = _rightEyeGaze.transform.position + tRight * _rightEyeGaze.transform.forward;
+        Vector3 pointA = leftEye.transform.position + tLeft * leftEye.transform.forward;
+        Vector3 pointB = rightEye.transform.position + tRight * rightEye.transform.forward;
         combinedEyePosition = (pointA + pointB) * 0.5f;
 
 
