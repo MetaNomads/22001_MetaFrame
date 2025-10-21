@@ -12,11 +12,11 @@ namespace MetaFrame.Data
 
         public override string SourceName => "Eyes";
 
-        [SerializeField] internal OVREyes _ovrEyes;
+        [SerializeField] internal OVRGaze _ovrGaze;
 
         protected override DataStructure CreateData()
         {
-            return new DataStructure(this, _ovrEyes);
+            return new DataStructure(this, _ovrGaze);
         }
 
 
@@ -62,30 +62,30 @@ namespace MetaFrame.Data
         public class DataStructure
         {
             private readonly DataSource_Eyes _source;
-            private readonly OVREyes _ovrEyes;
+            private readonly OVRGaze _ovrGaze;
 
 
 
             //Data referenced from the GazeRayCombined script as to avoid overlap and ensure updates are occuring in a single script.
-            public DataStructure(DataSource_Eyes source, OVREyes ovrEyes)
+            public DataStructure(DataSource_Eyes source, OVRGaze OVRGaze)
             {
                 _source = source;
-                _ovrEyes = ovrEyes;
+                _ovrGaze = OVRGaze;
             }
 
             //Left Eye
-            public Transform LeftEyeTransform => _ovrEyes.GetEyeTransform(OVREyes.Eye.Left);
-            public Vector3 LeftEyeGazeVector => _ovrEyes.GetGazeVector(OVREyes.Eye.Left);
+            public Transform LeftEyeTransform => _ovrGaze.GetEyeTransform(OVRGaze.Eye.Left);
+            public Vector3 LeftEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Left);
 
 
             //Right Eye
-            public Transform RightEyeTransform => _ovrEyes.GetEyeTransform(OVREyes.Eye.Right);
-            public Vector3 RightEyeGazeVector => _ovrEyes.GetGazeVector(OVREyes.Eye.Right);
+            public Transform RightEyeTransform => _ovrGaze.GetEyeTransform(OVRGaze.Eye.Right);
+            public Vector3 RightEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Right);
 
 
             //Combined Eyes
-            public Vector3 CombinedEyePosition => _ovrEyes.CalculateCombinedEyePosition();
-            public Vector3 CombinedEyeGazeVector => _ovrEyes.CalculateCombinedGazeVector();
+            public Vector3 CombinedEyePosition => _ovrGaze.CalculateCombinedEyePosition();
+            public Vector3 CombinedEyeGazeVector => _ovrGaze.CalculateCombinedGazeVector();
 
 
         }

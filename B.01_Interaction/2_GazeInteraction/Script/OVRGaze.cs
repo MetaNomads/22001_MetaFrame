@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class OVREyes : MonoBehaviour
+public class OVRGaze : MonoBehaviour
 {
 
     public enum Eye
