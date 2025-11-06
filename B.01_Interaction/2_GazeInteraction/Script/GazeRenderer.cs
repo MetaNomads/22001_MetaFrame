@@ -1,5 +1,6 @@
 using UnityEngine;
 using MetaFrame.Data;
+using Unity.XR.CoreUtils;
 
 public class GazeRenderer : MonoBehaviour
 {
@@ -67,8 +68,8 @@ public class GazeRenderer : MonoBehaviour
         }
 
         // Get eye positions to calculate the origin point
-        Vector3 leftEyePos = ovrGaze.GetEyeTransform(OVRGaze.Eye.Left).position;
-        Vector3 rightEyePos = ovrGaze.GetEyeTransform(OVRGaze.Eye.Right).position;
+        Vector3 leftEyePos = ovrGaze.GetEyeTransform(OVRGaze.Eye.Left).GetWorldPose().position;
+        Vector3 rightEyePos = ovrGaze.GetEyeTransform(OVRGaze.Eye.Right).GetWorldPose().position;
         Vector3 eyeOrigin = (leftEyePos + rightEyePos) * 0.5f;
 
         // Get combined gaze direction
