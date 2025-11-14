@@ -57,68 +57,68 @@ public class GazeRenderer : MonoBehaviour
         lineRenderer.material = lineMat;
     }
 
-    void Update()
-    {
-        if (!isEnabled) return;
+    //void Update()
+    //{
+    //    if (!isEnabled) return;
 
-        if (ovrGaze == null)
-        {
-            Debug.LogWarning("Eye data source not assigned or data not available.");
-            return;
-        }
+    //    if (ovrGaze == null)
+    //    {
+    //        Debug.LogWarning("Eye data source not assigned or data not available.");
+    //        return;
+    //    }
 
-        // Get eye positions to calculate the origin point
-        Vector3 leftEyePos = ovrGaze.GetEyeTransform(OVRGaze.Eye.Left).GetWorldPose().position;
-        Vector3 rightEyePos = ovrGaze.GetEyeTransform(OVRGaze.Eye.Right).GetWorldPose().position;
-        Vector3 eyeOrigin = (leftEyePos + rightEyePos) * 0.5f;
+    //    // Get eye positions to calculate the origin point
+    //    Vector3 leftEyePos = ovrGaze.GetEyePosition(OVRGaze.Eye.Left);
+    //    Vector3 rightEyePos = ovrGaze.GetEyePosition(OVRGaze.Eye.Right);
+    //    Vector3 eyeOrigin = (leftEyePos + rightEyePos) * 0.5f;
 
-        // Get combined gaze direction
-        Vector3 combinedGazeDirection = ovrGaze.GetGazeVector(OVRGaze.Eye.Combined);
+    //    // Get combined gaze direction
+    //    Vector3 combinedGazeDirection = ovrGaze.GetGazeVector(OVRGaze.Eye.Combined);
 
-        // Validate gaze direction
-        if (combinedGazeDirection.magnitude < 0.01f)
-        {
-            Debug.LogWarning("Invalid gaze direction detected, skipping frame.");
-            return;
-        }
+    //    // Validate gaze direction
+    //    if (combinedGazeDirection.magnitude < 0.01f)
+    //    {
+    //        Debug.LogWarning("Invalid gaze direction detected, skipping frame.");
+    //        return;
+    //    }
 
-        // Initialize smoothed values on first valid frame
-        if (!isInitialized)
-        {
-            smoothedGazeDirection = combinedGazeDirection;
-            smoothedEyeOrigin = eyeOrigin;
-            isInitialized = true;
-        }
+    //    // Initialize smoothed values on first valid frame
+    //    if (!isInitialized)
+    //    {
+    //        smoothedGazeDirection = combinedGazeDirection;
+    //        smoothedEyeOrigin = eyeOrigin;
+    //        isInitialized = true;
+    //    }
 
-        // Apply smoothing using lerp
-        smoothedGazeDirection = Vector3.Lerp(smoothedGazeDirection, combinedGazeDirection, 1f - smoothingFactor).normalized;
-        smoothedEyeOrigin = Vector3.Lerp(smoothedEyeOrigin, eyeOrigin, 1f - smoothingFactor);
+    //    // Apply smoothing using lerp
+    //    smoothedGazeDirection = Vector3.Lerp(smoothedGazeDirection, combinedGazeDirection, 1f - smoothingFactor).normalized;
+    //    smoothedEyeOrigin = Vector3.Lerp(smoothedEyeOrigin, eyeOrigin, 1f - smoothingFactor);
 
-        // Only update if change is significant enough
-        float directionChange = Vector3.Angle(smoothedGazeDirection, combinedGazeDirection);
-        float positionChange = Vector3.Distance(smoothedEyeOrigin, eyeOrigin);
+    //    // Only update if change is significant enough
+    //    float directionChange = Vector3.Angle(smoothedGazeDirection, combinedGazeDirection);
+    //    float positionChange = Vector3.Distance(smoothedEyeOrigin, eyeOrigin);
 
-        if (directionChange < 0.5f && positionChange < positionThreshold)
-        {
-            // Skip minor updates to reduce jitter
-            return;
-        }
+    //    if (directionChange < 0.5f && positionChange < positionThreshold)
+    //    {
+    //        // Skip minor updates to reduce jitter
+    //        return;
+    //    }
 
-        // Calculate end point along gaze direction
-        Vector3 endPoint = smoothedEyeOrigin + smoothedGazeDirection * gazeRayLength;
+    //    // Calculate end point along gaze direction
+    //    Vector3 endPoint = smoothedEyeOrigin + smoothedGazeDirection * gazeRayLength;
 
-        // Update line renderer
-        if (lineRenderer != null)
-        {
-            lineRenderer.SetPosition(0, smoothedEyeOrigin);
-            lineRenderer.SetPosition(1, endPoint);
-        }
+    //    // Update line renderer
+    //    if (lineRenderer != null)
+    //    {
+    //        lineRenderer.SetPosition(0, smoothedEyeOrigin);
+    //        lineRenderer.SetPosition(1, endPoint);
+    //    }
 
-        // Update debug sphere
-        if (gazeDebugSphere != null)
-        {
-            gazeDebugSphere.position = endPoint;
-            gazeDebugSphere.rotation = Quaternion.LookRotation(smoothedGazeDirection);
-        }
-    }
+    //    // Update debug sphere
+    //    if (gazeDebugSphere != null)
+    //    {
+    //        gazeDebugSphere.position = endPoint;
+    //        gazeDebugSphere.rotation = Quaternion.LookRotation(smoothedGazeDirection);
+    //    }
+    //}
 }

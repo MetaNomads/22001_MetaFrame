@@ -33,11 +33,11 @@ namespace MetaFrame.Data
                 //Left Eye Vector
                 if (RecordConfig.LeftEye)
                 {
-                    data["LeftEye"] = GetTransformDataWithGaze(Data.LeftEyeTransform, Data.LeftEyeGazeVector);
+                    data["LeftEye"] = GetPositionDataWithGaze(Data.LeftEyePosition, Data.LeftEyeGazeVector);
                 }
                 if (RecordConfig.RightEye)
                 {
-                    data["RightEye"] = GetTransformDataWithGaze(Data.RightEyeTransform, Data.RightEyeGazeVector);
+                    data["RightEye"] = GetPositionDataWithGaze(Data.RightEyePostion, Data.RightEyeGazeVector);
                 }
                 if (RecordConfig.CombinedEye)
                 {
@@ -74,18 +74,18 @@ namespace MetaFrame.Data
             }
 
             //Left Eye
-            public Transform LeftEyeTransform => _ovrGaze.GetEyeTransform(OVRGaze.Eye.Left);
-            public Vector3 LeftEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Left);
+            public Vector3 LeftEyePosition => _ovrGaze.GetEyePosition(OVRGaze.Eye.Left);
+            public Quaternion LeftEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Left);
 
 
             //Right Eye
-            public Transform RightEyeTransform => _ovrGaze.GetEyeTransform(OVRGaze.Eye.Right);
-            public Vector3 RightEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Right);
+            public Vector3 RightEyePostion => _ovrGaze.GetEyePosition(OVRGaze.Eye.Right);
+            public Quaternion RightEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Right);
 
 
             //Combined Eyes
             public Vector3 CombinedEyePosition => _ovrGaze.CalculateCombinedEyePosition();
-            public Vector3 CombinedEyeGazeVector => _ovrGaze.CalculateCombinedGazeVector();
+            public Quaternion CombinedEyeGazeVector => _ovrGaze.CalculateCombinedGazeVector();
 
 
         }
@@ -116,18 +116,18 @@ namespace MetaFrame.Data
 
 
 
-        /// <summary>
-        // Utility for extracting position data with an additional Gaze Vector
-        /// <summary>
-        protected object GetPositionDataWithGaze(Vector3 transform, Vector3 gazeVector)
-        {
-            if (transform == null) return null;
-            return new
-            {
-                Position = new float[] { transform.x, transform.y, transform.z },
-                Gaze_Vector = new float[] { gazeVector.x, gazeVector.y, gazeVector.z }
-            };
-        }
+        ///// <summary>
+        //// Utility for extracting position data with an additional Gaze Vector
+        ///// <summary>
+        //protected object GetPositionDataWithGaze(Vector3 transform, Vector3 gazeVector)
+        //{
+        //    if (transform == null) return null;
+        //    return new
+        //    {
+        //        Position = new float[] { transform.x, transform.y, transform.z },
+        //        Gaze_Vector = new float[] { gazeVector.x, gazeVector.y, gazeVector.z }
+        //    };
+        //}
     }
 }
 

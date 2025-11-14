@@ -22,64 +22,97 @@ public class OVRGaze : MonoBehaviour
     private GameObject _cameraRig;
 
 
-    public Transform GetEyeTransform(Eye eye)
+    //public Transform GetEyeTransform(Eye eye)
+    //{
+    //    switch (eye)
+    //    {
+    //        case Eye.Left:
+    //            Debug.Log("Left eye transform position from camera " + _leftEyeGaze.transform.GetWorldPose().position);
+    //            Debug.Log("Left eye transform rotation from camera " + _leftEyeGaze.transform.GetWorldPose().rotation.eulerAngles);
+    //            Debug.Log("Left eye transform forward from camera " + _leftEyeGaze.transform.GetWorldPose().forward);
+
+
+    //            return _leftEyeGaze.transform;
+    //        case Eye.Right:
+    //            Debug.Log("Right eye transform rotation from camera " + _rightEyeGaze.transform.GetWorldPose().position);
+    //            Debug.Log("Right eye transform rotation from camera " + _rightEyeGaze.transform.GetWorldPose().rotation.eulerAngles);
+
+    //            return _rightEyeGaze.transform;
+    //        case Eye.Combined:
+    //            Debug.LogWarning("Combined eye does not have a single transform.");
+    //            return null; // Combined eye does not have a single transform
+    //        default:
+    //            return null;
+    //    }
+    //}
+
+    public Vector3 GetEyePosition(Eye eye)
     {
         switch (eye)
         {
             case Eye.Left:
-                Debug.Log("Left eye transform position from camera " + _leftEyeGaze.transform.GetWorldPose().position);
-                Debug.Log("Left eye transform rotation from camera " + _leftEyeGaze.transform.GetWorldPose().rotation.eulerAngles);
-                Debug.Log("Left eye transform forward from camera " + _leftEyeGaze.transform.GetWorldPose().forward);
-
-
-                return _leftEyeGaze.transform;
+                return _leftEyeGaze.transform.GetWorldPose().position;
             case Eye.Right:
-                Debug.Log("Right eye transform rotation from camera " + _rightEyeGaze.transform.GetWorldPose().position);
-                Debug.Log("Right eye transform rotation from camera " + _rightEyeGaze.transform.GetWorldPose().rotation.eulerAngles);
-
-                return _rightEyeGaze.transform;
+                return _rightEyeGaze.transform.GetWorldPose().position;
             case Eye.Combined:
-                Debug.LogWarning("Combined eye does not have a single transform.");
-                return null; // Combined eye does not have a single transform
+                Vector3 eyeOrigin = (_leftEyeGaze.transform.GetWorldPose().position + _rightEyeGaze.transform.GetWorldPose().position) * 0.5f;
+                return eyeOrigin; // Combined eye does not have a single transform
             default:
-                return null;
+                return Vector3.zero;
         }
     }
 
-    public Vector3 GetGazeVector(Eye eye)
+    public Quaternion GetGazeVector(Eye eye)
     {
         switch (eye)
         {
             case Eye.Left:
-                return _leftEyeGaze.transform.forward;
+                return _leftEyeGaze.transform.localRotation;
             case Eye.Right:
-                return _rightEyeGaze.transform.forward;
+                return _rightEyeGaze.transform.localRotation;
             case Eye.Combined:
                 // Average the gaze directions of both eyes for combined gaze
                 return CalculateCombinedGazeVector();
             default:
-                return new Vector3(0, 0, 0);
+                return new Quaternion (0,0,0,0);
         }
     }
 
-    public Vector3 CalculateCombinedGazeVector()
+    public Quaternion CalculateCombinedGazeVector()
     {
-        /// Get the midpoint between the two eyes
+        ///// Get the midpoint between the two eyes
         Vector3 eyeOrigin = (_leftEyeGaze.transform.GetWorldPose().position + _rightEyeGaze.transform.GetWorldPose().position) * 0.5f;
-        // Get the combined fixation point
-        Vector3 fixationPoint = CalculateCombinedEyePosition();
-        // Calculate direction from eye origin to fixation point
-        Vector3 gazeDirection = (fixationPoint - eyeOrigin).normalized;
+        //// Get the combined fixation point
+        //Vector3 fixationPoint = CalculateCombinedEyePosition();
+        //// Calculate direction from eye origin to fixation point
+        //Vector3 gazeDirection = (fixationPoint - eyeOrigin).normalized;
 
 
-        return gazeDirection; 
+        //return gazeDirection; 
+
+        Pose leftEye = new Pose(
+           _leftEyeGaze.transform.localPosition,
+           _leftEyeGaze.transform.localRotation
+       );
+
+        Pose rightEye = new Pose(
+            _rightEyeGaze.transform.localPosition,
+            _rightEyeGaze.transform.localRotation
+        );
+        Vector3 combinedGaze = Vector3.zero;
+        combinedGaze = (leftEye.forward + rightEye.forward) / 2;
+        Debug.DrawRay(eyeOrigin, combinedGaze * 50, Color.orange);
+        return Quaternion.LookRotation(combinedGaze.normalized);
+
+
+
 
 
         // get head position rotation
         //Vector3 headPosition = _face.transform.position; ;
         //Quaternion headRotation = _face.transform.rotation;
 
-        
+
 
         //return (headRotation * (CalculateCombinedEyePosition() - Vector3.zero).normalized).normalized;
 
@@ -92,11 +125,11 @@ public class OVRGaze : MonoBehaviour
 
     public Vector3 CalculateCombinedEyePosition()
     {
-        Debug.Log($"Calculate Rig Rotation: {_cameraRig.transform.rotation.eulerAngles}");
-        Debug.Log($"Calculate Left Eye LOCAL rot: {_leftEyeGaze.transform.localRotation.eulerAngles}");
-        Debug.Log($"Calculate Left Eye WORLD rot: {_leftEyeGaze.transform.rotation.eulerAngles}");
-        Debug.Log($"Calculate Left Eye LOCAL forward: {_leftEyeGaze.transform.localRotation * Vector3.forward}");
-        Debug.Log($"Calculate Left Eye WORLD forward: {_leftEyeGaze.transform.forward}");
+        //Debug.Log($"Calculate Rig Rotation: {_cameraRig.transform.rotation.eulerAngles}");
+        //Debug.Log($"Calculate Left Eye LOCAL rot: {_leftEyeGaze.transform.localRotation.eulerAngles}");
+        //Debug.Log($"Calculate Left Eye WORLD rot: {_leftEyeGaze.transform.rotation.eulerAngles}");
+        //Debug.Log($"Calculate Left Eye LOCAL forward: {_leftEyeGaze.transform.localRotation * Vector3.forward}");
+        //Debug.Log($"Calculate Left Eye WORLD forward: {_leftEyeGaze.transform.forward}");
         //Pose leftEye = _leftEyeGaze.transform.GetWorldPose();
         //Pose rightEye = _rightEyeGaze.transform.GetWorldPose();
 
