@@ -1,28 +1,30 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class Gaze_Interactor : MonoBehaviour
 {
 
     [SerializeField]
-    private GameObject[] raycastHits;
+    private List<GameObject> raycastHits = new List<GameObject>();
     [SerializeField]
-    private Gaze_Interactable_Object[] gameInteractableObjectsHit;
+    private List<Gaze_Interactable_Object> gameInteractableObjectsHit = new List<Gaze_Interactable_Object>();
 
 
     // Update is called once per frame
-    void Update()
+    void FixedUpdate()
     {
-        RaycastHit[] hits;
+        RaycastHit hits;
         //Assume the forward direction of the GameObject is the gaze direction
-        hits = Physics.RaycastAll(transform.position, transform.forward);
+        hits = Physics.Raycast(transform.position, transform.forward);
         GameObject furthestObjectHit = hits[0].collider.gameObject;
 
+        
         for (int i = 0; i < hits.Length; i++)
         {
             raycastHits[i] = hits[i].collider.gameObject;
             if (raycastHits[i].GetComponent<Gaze_Interactable_Object>() != null)
             {
-                gameInteractableObjectsHit[i] = raycastHits[i].GetComponent<Gaze_Interactable_Object>();
+                gameInteractableObjectsHit.Add(raycastHits[i].GetComponent<Gaze_Interactable_Object>());
                 //gameInteractableObjectsHit[i].OnGazeEnter();
             }
 
@@ -30,8 +32,8 @@ public class Gaze_Interactor : MonoBehaviour
             {
                 furthestObjectHit = raycastHits[i];
             }
-        }
-        Debug.Log("Number of raycast hits: " + hits.Length + " Number of interactable objects hit: " + gameInteractableObjectsHit.Length + " Furthest hit object: " + furthestObjectHit.name);
+        } 
+        //Debug.Log("Number of raycast hits: " + hits.Length + " Number of interactable objects hit: " + gameInteractableObjectsHit.Count + " Furthest hit object: " + furthestObjectHit.name);
         Debug.DrawRay(transform.position, transform.forward * 50, Color.magenta);
     }
 }
