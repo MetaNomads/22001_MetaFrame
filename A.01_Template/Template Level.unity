@@ -91574,19 +91574,13 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects:
-    - targetCorrespondingSourceObject: {fileID: 3345485350713982388, guid: 94c413a1861fd1a4da12906d79fcf35b,
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 2772791076231424210, guid: 94c413a1861fd1a4da12906d79fcf35b,
         type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1699350575}
-    m_AddedComponents: []
+      addedObject: {fileID: 1699350576}
   m_SourcePrefab: {fileID: 100100000, guid: 94c413a1861fd1a4da12906d79fcf35b, type: 3}
---- !u!4 &1538697057 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 3345485350713982388, guid: 94c413a1861fd1a4da12906d79fcf35b,
-    type: 3}
-  m_PrefabInstance: {fileID: 1538697056}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1539705526
 GameObject:
   m_ObjectHideFlags: 0
@@ -98562,37 +98556,25 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1017241253}
   m_LocalEulerAnglesHint: {x: -0.0000034150944, y: 0.0000002134434, z: 0.0000002134434}
---- !u!1 &1699350574
+--- !u!1 &1699350574 stripped
 GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
+  m_CorrespondingSourceObject: {fileID: 2772791076231424210, guid: 94c413a1861fd1a4da12906d79fcf35b,
+    type: 3}
+  m_PrefabInstance: {fileID: 1538697056}
   m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1699350575}
-  m_Layer: 0
-  m_Name: CombinedEye
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1699350575
-Transform:
+--- !u!114 &1699350576
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1699350574}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1538697057}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 27fe232f3e4c5de47a6fae8bba618280, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OVRCombinedEye
+  ovrGaze: {fileID: 436472028}
 --- !u!114 &1699379012 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 1125734649379851869, guid: 740b5ee262c98df4381adba974c8f978,
