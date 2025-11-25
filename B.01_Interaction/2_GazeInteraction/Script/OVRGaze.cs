@@ -78,14 +78,27 @@ public class OVRGaze : MonoBehaviour
         }
     }
 
-    public Quaternion CalculateCombinedGazeVector()
+    public Vector3 GetEyeForward(Eye eye)
+    {
+        switch (eye)
+        {
+            case Eye.Left:
+                return _leftEyeGaze.transform.forward;
+            case Eye.Right:
+                return _rightEyeGaze.transform.forward;
+            case Eye.Combined:
+                Vector3 eyeOrigin = (_leftEyeGaze.transform.GetWorldPose().position + _rightEyeGaze.transform.GetWorldPose().position) * 0.5f;
+                return eyeOrigin; // Combined eye does not have a single transform
+            default:
+                return Vector3.zero;
+        }
+    }
+
+    public Vector3 CalculateCombinedGazeVector()
     {
         ///// Get the midpoint between the two eyes
         Vector3 eyeOrigin = (_leftEyeGaze.transform.GetWorldPose().position + _rightEyeGaze.transform.GetWorldPose().position) * 0.5f;
-        //// Get the combined fixation point
-        //Vector3 fixationPoint = CalculateCombinedEyePosition();
-        //// Calculate direction from eye origin to fixation point
-        //Vector3 gazeDirection = (fixationPoint - eyeOrigin).normalized;
+        
 
 
         //return gazeDirection; 
@@ -102,7 +115,7 @@ public class OVRGaze : MonoBehaviour
         Vector3 combinedGaze = Vector3.zero;
         combinedGaze = (leftEye.forward + rightEye.forward) / 2;
         Debug.DrawRay(eyeOrigin, combinedGaze * 50, Color.orange);
-        return Quaternion.LookRotation(combinedGaze.normalized);
+        return combinedGaze.normalized;
 
 
 

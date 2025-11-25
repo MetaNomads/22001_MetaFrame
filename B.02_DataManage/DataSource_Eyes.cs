@@ -76,7 +76,7 @@ namespace MetaFrame.Data
             //Left Eye
             public Vector3 LeftEyePosition => _ovrGaze.GetEyePosition(OVRGaze.Eye.Left);
             public Quaternion LeftEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Left);
-
+            public Vector3 LeftEyeForward => 
 
             //Right Eye
             public Vector3 RightEyePostion => _ovrGaze.GetEyePosition(OVRGaze.Eye.Right);
