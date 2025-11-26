@@ -12,7 +12,7 @@ namespace MetaFrame.Data
 
         public override string SourceName => "Eyes";
 
-        [SerializeField] internal OVRGaze _ovrGaze;
+        [SerializeField] internal Gaze _ovrGaze;
 
         protected override DataStructure CreateData()
         {
@@ -33,15 +33,15 @@ namespace MetaFrame.Data
                 //Left Eye Vector
                 if (RecordConfig.LeftEye)
                 {
-                    data["LeftEye"] = GetPositionDataWithGaze(Data.LeftEyePosition, Data.LeftEyeGazeVector);
+                    data["LeftEye"] = GetPositionDataWithGaze(Data.LeftEyePosition, Data.LeftEyeGazeRotation);
                 }
                 if (RecordConfig.RightEye)
                 {
-                    data["RightEye"] = GetPositionDataWithGaze(Data.RightEyePostion, Data.RightEyeGazeVector);
+                    data["RightEye"] = GetPositionDataWithGaze(Data.RightEyePostion, Data.RightEyeGazeRotation);
                 }
                 if (RecordConfig.CombinedEye)
                 {
-                    data["CombinedEye"] = GetPositionDataWithGaze(Data.CombinedEyePosition, Data.CombinedEyeGazeVector);
+                    data["CombinedEye"] = GetPositionDataWithGaze(Data.CombinedEyePosition, Data.CombinedEyeGazeRotation);
                 }
 
             }
@@ -62,32 +62,31 @@ namespace MetaFrame.Data
         public class DataStructure
         {
             private readonly DataSource_Eyes _source;
-            private readonly OVRGaze _ovrGaze;
+            private readonly Gaze _ovrGaze;
 
 
 
             //Data referenced from the GazeRayCombined script as to avoid overlap and ensure updates are occuring in a single script.
-            public DataStructure(DataSource_Eyes source, OVRGaze OVRGaze)
+            public DataStructure(DataSource_Eyes source, Gaze OVRGaze)
             {
                 _source = source;
                 _ovrGaze = OVRGaze;
             }
 
             //Left Eye
-            public Vector3 LeftEyePosition => _ovrGaze.GetEyePosition(OVRGaze.Eye.Left);
-            public Quaternion LeftEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Left);
-            public Vector3 LeftEyeForward => 
+            public Vector3 LeftEyePosition => _ovrGaze.GetEyePosition(Gaze.Eye.Left);
+            public Quaternion LeftEyeGazeRotation => _ovrGaze.GetGazeRotation(Gaze.Eye.Left);
+            public Vector3 LeftEyeForward => _ovrGaze.GetEyeForward(Gaze.Eye.Left);
 
             //Right Eye
-            public Vector3 RightEyePostion => _ovrGaze.GetEyePosition(OVRGaze.Eye.Right);
-            public Quaternion RightEyeGazeVector => _ovrGaze.GetGazeVector(OVRGaze.Eye.Right);
-
+            public Vector3 RightEyePostion => _ovrGaze.GetEyePosition(Gaze.Eye.Right);
+            public Quaternion RightEyeGazeRotation => _ovrGaze.GetGazeRotation(Gaze.Eye.Right);
+            public Vector3 RightEyeForward => _ovrGaze.GetEyeForward(Gaze.Eye.Right);
 
             //Combined Eyes
-            public Vector3 CombinedEyePosition => _ovrGaze.CalculateCombinedEyePosition();
-            public Quaternion CombinedEyeGazeVector => _ovrGaze.CalculateCombinedGazeVector();
-
-
+            public Vector3 CombinedEyePosition => _ovrGaze.GetCombinedEyePosition();
+            public Quaternion CombinedEyeGazeRotation => _ovrGaze.GetCombinedGazeRotation();
+            public Vector3 CombinedEyeForward => _ovrGaze.GetEyeForward(Gaze.Eye.Left);
         }
 
 
