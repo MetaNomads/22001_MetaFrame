@@ -21,7 +21,7 @@ public class OVRCombinedEye : MonoBehaviour
     private Vector3 DetermineCombinedPositionFromOVRGaze()
     {
         //Temporarily using the left eye position
-        return ovrGaze.GetEyePosition(Gaze.Eye.Left);
+        return ovrGaze.GetEyePosition(Gaze.GazeData.Left);
     }
 
     private Quaternion DetermineCombinedRotationFromOVRGaze()

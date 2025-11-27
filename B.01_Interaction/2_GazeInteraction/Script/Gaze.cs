@@ -1,67 +1,83 @@
+using MetaFrame.Data;
 using Unity.Mathematics;
 using Unity.XR.CoreUtils;
 using UnityEngine;
+using static OVRPlugin;
 
 public class Gaze: MonoBehaviour
 {
-    public enum Eye
+    [SerializeField] private DataManager _dataManager;
+    public enum GazeData
     {
         Left,
         Right,
-        Combined
+        Combined,
+        Chest,
+        Head
     }
 
     [SerializeField] private OVREyeGaze _leftEyeGaze;
 
     [SerializeField] private OVREyeGaze _rightEyeGaze;
 
-    [SerializeField] private OVRBody _body;
+    [SerializeField] private DataSource_Body _body;
     [SerializeField] private OVRFaceExpressions _face;
 
-    [SerializeField]
-    private GameObject _cameraRig;
+    [SerializeField] private GameObject _cameraRig;
 
-    public Vector3 GetEyePosition(Eye eye)
+    public Vector3 GetEyePosition(GazeData eye)
     {
         switch (eye)
         {
-            case Eye.Left:
+            case GazeData.Left:
                 return _leftEyeGaze.transform.GetWorldPose().position;
-            case Eye.Right:
+            case GazeData.Right:
                 return _rightEyeGaze.transform.GetWorldPose().position;
-            case Eye.Combined:
+            case GazeData.Combined:
                 return GetCombinedEyePosition();
+            case GazeData.Head:
+                return GetHeadPosition();
+            case GazeData.Chest:
+                return GetChestPosition();
             default:
                 return Vector3.zero;
         }
     }
 
-    public Quaternion GetGazeRotation(Eye eye)
+    public Quaternion GetGazeRotation(GazeData eye)
     {
         switch (eye)
         {
-            case Eye.Left:
+            case GazeData.Left:
                 return _leftEyeGaze.transform.localRotation;
-            case Eye.Right:
+            case GazeData.Right:
                 return _rightEyeGaze.transform.localRotation;
-            case Eye.Combined:
+            case GazeData.Combined:
                 // Average the gaze directions of both eyes for combined gaze
                 return GetCombinedGazeRotation();
+            case GazeData.Head:
+                return GetHeadRotation();
+            case GazeData.Chest:
+                return GetChestRotation();
             default:
                 return new Quaternion(0, 0, 0, 0);
         }
     }
 
-    public Vector3 GetEyeForward(Eye eye)
+    public Vector3 GetGazeForward(GazeData eye)
     {
         switch (eye)
         {
-            case Eye.Left:
+            case GazeData.Left:
                 return _leftEyeGaze.transform.forward;
-            case Eye.Right:
+            case GazeData.Right:
                 return _rightEyeGaze.transform.forward;
-            case Eye.Combined:
+            case GazeData.Combined:
                 return GetCombinedGazeForward();
+            case GazeData.Head:
+                return GetHeadForward();
+            case GazeData.Chest:
+                return GetChestForward();
             default:
                 return Vector3.zero;
         }
@@ -97,5 +113,42 @@ public class Gaze: MonoBehaviour
     {
         Quaternion CombinedGazeRoatation = Quaternion.Slerp(_leftEyeGaze.transform.localRotation, _rightEyeGaze.transform.localRotation, 0.5f);
         return CombinedGazeRoatation;
+    }
+
+    public Vector3 GetHeadPosition()
+    {
+        if (_dataManager?.Body?.Data?.Head != null)
+            return _dataManager.Body.Data.Head.position;
+        return default;
+    }
+    public Quaternion GetHeadRotation()
+    {
+        if (_dataManager?.Body?.Data?.Head != null)
+            return _dataManager.Body.Data.Head.rotation;
+        return default;
+    }
+    public Vector3 GetHeadForward()
+    {
+        if (_dataManager?.Body?.Data?.Head != null)
+            return _dataManager.Body.Data.Head.forward;
+        return default;
+    }
+    public Vector3 GetChestPosition()
+    {
+        if (_dataManager?.Body?.Data?.Chest != null)
+            return _dataManager.Body.Data.Chest.position;
+        return default;
+    }
+    public Quaternion GetChestRotation()
+    {
+        if (_dataManager?.Body?.Data?.Chest != null)
+            return _dataManager.Body.Data.Chest.rotation;
+        return default;
+    }
+    public Vector3 GetChestForward()
+    {
+        if (_dataManager?.Body?.Data?.Chest != null)
+            return _dataManager.Body.Data.Chest.forward;
+        return default;
     }
 }

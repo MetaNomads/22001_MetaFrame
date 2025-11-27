@@ -72,16 +72,18 @@ namespace MetaFrame.Data
             };
         }
         /// <summary>
-        // Utility for extracting transform data with an additional gaze vector
+        // Utility for extracting position, rotation, and forward for the data source gaze
         /// <summary>
-        protected object GetPositionDataWithGaze(Vector3 position, Quaternion gaze)
+        protected object GetDataWithGaze(Vector3 position, Quaternion gaze, Vector3 forward)
         {
             if (position == null) return null;
             if (gaze == null) return null;
+            if (forward == null) return null;
             return new
             {
                 Position = new float[] { position.x, position.y, position.z },
-                Gaze = new float[] { gaze.x, gaze.y, gaze.z, gaze.w }
+                Gaze = new float[] { gaze.x, gaze.y, gaze.z, gaze.w },
+                Forward = new float[] { forward.x, forward.y, forward.z }
             };
             
         }
