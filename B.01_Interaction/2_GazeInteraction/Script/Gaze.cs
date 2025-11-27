@@ -125,7 +125,7 @@ public class Gaze: MonoBehaviour
     {
         if (_dataManager?.Body?.Data?.Head != null)
             return _dataManager.Body.Data.Head.rotation;
-        return default;
+        return Quaternion.identity;
     }
     public Vector3 GetHeadForward()
     {
@@ -143,7 +143,7 @@ public class Gaze: MonoBehaviour
     {
         if (_dataManager?.Body?.Data?.Chest != null)
             return _dataManager.Body.Data.Chest.rotation;
-        return default;
+        return Quaternion.identity;
     }
     public Vector3 GetChestForward()
     {
