@@ -1,5 +1,5 @@
 using UnityEngine;
-using MetaFrame.Data;
+using MetaNomads.Data;
 using Unity.XR.CoreUtils;
 
 public class GazeRenderer : MonoBehaviour

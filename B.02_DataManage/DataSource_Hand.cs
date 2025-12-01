@@ -5,12 +5,12 @@ using Sirenix.OdinInspector;
 using Oculus.Interaction;
 using Oculus.Interaction.Input;
 using Oculus.Interaction.PoseDetection;
-using MetaFrame.Interaction;
+using MetaNomads.Interaction;
 using Sirenix.OdinInspector.Demos;
 using NUnit.Framework;
 
 
-namespace MetaFrame.Data
+namespace MetaNomads.Data
 {
     public class DataSource_Hand : DataSourceBase<DataSource_Hand.DataStructure, DataSource_Hand.RecordingConfig>
     {

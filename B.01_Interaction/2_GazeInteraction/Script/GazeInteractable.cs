@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.Events;
 #endregion
 
-namespace MetaFrame.Interaction.GazeInteraction
+namespace MetaNomads.Interaction.GazeInteraction
 {
     public class GazeInteractable : MonoBehaviour
     {

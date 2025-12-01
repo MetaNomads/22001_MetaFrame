@@ -4,7 +4,7 @@ using UnityEngine;
 using Sirenix.OdinInspector;
 using Oculus.Interaction.Input;
 
-namespace MetaFrame.Data
+namespace MetaNomads.Data
 {
     /// <summary>
     /// Complete FullBody skeleton data source with all 70+ bones

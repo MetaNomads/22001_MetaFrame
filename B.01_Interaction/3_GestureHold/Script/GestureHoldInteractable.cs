@@ -3,7 +3,7 @@ using Oculus.Interaction;
 using Oculus.Interaction.Input;
 using Oculus.Interaction.HandGrab;
 
-namespace MetaFrame.Interaction
+namespace MetaNomads.Interaction
 {
     /// <summary>
     /// Use a gesture to hold an interactorable, requires hand grab interactable

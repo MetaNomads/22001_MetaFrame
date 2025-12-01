@@ -6,10 +6,10 @@ using Oculus.Interaction;
 using Oculus.Interaction.Input;
 using static Oculus.Interaction.Input.TrackingToWorldTransformerOVR;
 using Oculus.Interaction.PoseDetection;
-using MetaFrame.Interaction;
+using MetaNomads.Interaction;
 using System.Collections;
 
-namespace MetaFrame.Data
+namespace MetaNomads.Data
 {   
     public class DataManager : MonoBehaviour
     {

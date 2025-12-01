@@ -4,7 +4,7 @@ using UnityEditor;
 #endif
 using UnityEngine;
 
-namespace MetaFrame.Tags
+namespace MetaNomads.Tags
 {
 	[DisallowMultipleComponent, DefaultExecutionOrder(-9000), ExecuteInEditMode]
 	internal sealed class Taggable : MonoBehaviour

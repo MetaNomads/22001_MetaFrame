@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using System.Reflection;
 
 
-namespace MetaFrame.Data
+namespace MetaNomads.Data
 {
     /// <summary>
     /// Interface for all data sources to enable plugin architecture

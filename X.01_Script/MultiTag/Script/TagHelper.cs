@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace MetaFrame.Tags
+namespace MetaNomads.Tags
 {
 	public static class TagHelper
 	{

@@ -4,7 +4,7 @@ using UnityEngine;
 using Sirenix.OdinInspector;
 using static OVRFaceExpressions;
 
-namespace MetaFrame.Data
+namespace MetaNomads.Data
 {
     public class DataSource_FACS : DataSourceBase<DataSource_FACS.DataStructure, DataSource_FACS.RecordingConfig>
     {

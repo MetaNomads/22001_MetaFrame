@@ -8,7 +8,7 @@ using UnityEngine;
 using Sirenix.OdinInspector;
 using Newtonsoft.Json;
 
-namespace MetaFrame.Data
+namespace MetaNomads.Data
 {
     public class DataRecorder : MonoBehaviour
     {
@@ -146,6 +146,7 @@ namespace MetaFrame.Data
             {
                 CreateSessionDirectory();
                 InitializeBatchStructures();
+                LogDataSourcesOnce();
                 startRecord = true;
                 _isPaused = false;
                 _nextRecordTime = Time.unscaledTime + _recordingInterval;
@@ -260,9 +261,9 @@ namespace MetaFrame.Data
             {
                 try
                 {
-                    Debug.Log("The source being tested is: " +  dataSource.SourceName);
+                    // Debug.Log("The source being tested is: " +  dataSource.SourceName);
                     var sourceData = dataSource.CollectData();
-                    Debug.Log("The source: " + dataSource.SourceName + " has " + sourceData.Count + " options");
+                    // Debug.Log("The source: " + dataSource.SourceName + " has " + sourceData.Count + " options");
                     if (sourceData.Count > 0)
                     {
                         // Create new dictionary with timestamp first
@@ -463,6 +464,23 @@ namespace MetaFrame.Data
             return $"{time.Hours:D2}:{time.Minutes:D2}:{time.Seconds:D2}.{time.Milliseconds:D3}";
         }
 
+        private void LogDataSourcesOnce()
+        {
+            if (_dataManager == null || _dataManager._dataSources == null) return;
+            foreach (var dataSource in _dataManager._dataSources)
+            {
+                try
+                {
+                    var sourceData = dataSource.CollectData();
+                    Debug.Log($"[DataRecorder] Source: {dataSource.SourceName}, initial options: {sourceData?.Count ?? 0}");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[DataRecorder] Failed to probe {dataSource.SourceName}: {e.Message}");
+                }
+            }
+        }
+
         /*=========================================================================================================================*/
         /// <summary>
         /// Inspector Information
@@ -491,7 +509,5 @@ namespace MetaFrame.Data
         private string BatchStatus => startRecord ? 
             $"Batches: {string.Join(", ", _dataBatches.Keys.Select(k => $"{k}({_dataBatches[k].Count})"))}" : 
             "Not recording";
-
-
     }
 }

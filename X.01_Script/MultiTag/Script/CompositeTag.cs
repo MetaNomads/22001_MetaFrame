@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace MetaFrame.Tags
+namespace MetaNomads.Tags
 {
 	[CreateAssetMenu(menuName = "MetaFrame/Tags/Composite Tag")]
 #if ODIN_INSPECTOR

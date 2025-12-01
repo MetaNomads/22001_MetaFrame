@@ -2,10 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-
-
-
-namespace MetaFrame.Data
+namespace MetaNomads.Data
 {
     public class DataSource_Gaze : DataSourceBase<DataSource_Gaze.DataStructure, DataSource_Gaze.RecordingConfig>
     {
@@ -24,7 +21,7 @@ namespace MetaFrame.Data
         public override Dictionary<string, object> CollectData()
         {
 
-            Debug.Log("Eye Referenced");
+            // Debug.Log("Eye Referenced");
             var data = new Dictionary<string, object>();
 
             //In case there is a way to ensure the eye tracker is functional, add it here.
