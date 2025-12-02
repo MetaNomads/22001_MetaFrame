@@ -26,7 +26,7 @@ public class OVRCombinedEye : MonoBehaviour
 
     private Quaternion DetermineCombinedRotationFromOVRGaze()
     {
-        //Temporarily using the right eye position
-        return new Quaternion(0,0,0,0);
+        //Temporarily using the left eye position
+        return ovrGaze.GetGazeRotation(Gaze.GazeData.Left);
     }
 }

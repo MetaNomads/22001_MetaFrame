@@ -22,6 +22,9 @@ namespace MetaNomads.Data
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_FACS FACS;
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Body Body;
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Gaze Gaze;
+        [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Interactable Interactable;
+
+
 
         // Plugin architecture for extensibility
         internal List<IDataSource> _dataSources = new List<IDataSource>();
@@ -31,6 +34,7 @@ namespace MetaNomads.Data
         public DataSource_Body.DataStructure BodyData => Body?.Data;
         public DataSource_Hand.DataStructure HandData => Hand?.Data;
         public DataSource_Gaze.DataStructure EyesData => Gaze?.Data;
+        public DataSource_Interactable.DataStructure InteractableData => Interactable?.Data;
 
         protected virtual void Start()
         {
@@ -48,6 +52,7 @@ namespace MetaNomads.Data
             if (FACS != null) FACS.Initialize(this);
             if (Body != null) Body.Initialize(this);
             if (Gaze != null) Gaze.Initialize(this);
+            if (Interactable != null) Interactable.Initialize(this);
         }
 
         /// <summary>

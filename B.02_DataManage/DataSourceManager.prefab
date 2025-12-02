@@ -54,7 +54,7 @@ MonoBehaviour:
   Hand: {fileID: 651816445738040023}
   FACS: {fileID: 270680259249956225}
   Body: {fileID: 762945099242332800}
-  Eyes: {fileID: 2622570220983134550}
+  Gaze: {fileID: 0}
 --- !u!1 &4671476556985065058
 GameObject:
   m_ObjectHideFlags: 0
@@ -119,6 +119,7 @@ GameObject:
   - component: {fileID: 762945099242332800}
   - component: {fileID: 651816445738040023}
   - component: {fileID: 2622570220983134550}
+  - component: {fileID: 4895239201978150821}
   m_Layer: 0
   m_Name: DataSource
   m_TagString: Untagged
@@ -254,5 +255,23 @@ MonoBehaviour:
     LeftEye: 1
     RightEye: 1
     CombinedEye: 1
+    Chest: 1
+    Head: 1
   dataManager: {fileID: 7991834286055111014}
   _ovrGaze: {fileID: 0}
+--- !u!114 &4895239201978150821
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7153492627746420763}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4471c72f29fa6f4489708f4f935a57a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MetaNomads.Data.DataSource_Interactable
+  RecordConfig:
+    GazedObject: 1
+  dataManager: {fileID: 7991834286055111014}
+  _gazeInteractor: {fileID: 0}

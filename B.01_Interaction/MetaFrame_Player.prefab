@@ -86,6 +86,11 @@ PrefabInstance:
       propertyPath: _ovrGaze
       value: 
       objectReference: {fileID: 2333431237039805200}
+    - target: {fileID: 6075591131032185517, guid: ba3e2d7060e954343a770804b62c8952,
+        type: 3}
+      propertyPath: _gazeInteractor
+      value: 
+      objectReference: {fileID: 7722520837725872849}
     - target: {fileID: 7484350693822371999, guid: ba3e2d7060e954343a770804b62c8952,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -146,6 +151,11 @@ PrefabInstance:
       propertyPath: Gaze
       value: 
       objectReference: {fileID: 388604254551012544}
+    - target: {fileID: 8743462834107366510, guid: ba3e2d7060e954343a770804b62c8952,
+        type: 3}
+      propertyPath: Interactable
+      value: 
+      objectReference: {fileID: 7128853118614843955}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -169,6 +179,18 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 3944612131375601822}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &7128853118614843955 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 6075591131032185517, guid: ba3e2d7060e954343a770804b62c8952,
+    type: 3}
+  m_PrefabInstance: {fileID: 3944612131375601822}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4471c72f29fa6f4489708f4f935a57a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MetaNomads.Data.DataSource_Interactable
 --- !u!1001 &8266347968978522529
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -366,6 +388,18 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 8266347968978522529}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &7722520837725872849 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1845367982143796080, guid: 43aebc342e5204e4ebd46ccf22bc76a1,
+    type: 3}
+  m_PrefabInstance: {fileID: 8266347968978522529}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33ff91d2964055745b918f61e6d0e66b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Gaze_Interactor
 --- !u!114 &8317644327808611824 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 133351917617128529, guid: 43aebc342e5204e4ebd46ccf22bc76a1,

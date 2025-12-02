@@ -536,6 +536,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _broadcasters: []
   _handler: {fileID: 1471271691729123294}
+  _handlers: []
 --- !u!1 &1211567875427989493
 GameObject:
   m_ObjectHideFlags: 0
@@ -2326,6 +2327,67 @@ Transform:
   - {fileID: 7163034582578960415}
   m_Father: {fileID: 7641754541277901945}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2612540744543161115
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5561697173880143313}
+  - component: {fileID: 7304233489135969291}
+  - component: {fileID: 1845367982143796080}
+  m_Layer: 0
+  m_Name: CombinedEye
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5561697173880143313
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2612540744543161115}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1105151954584316411}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7304233489135969291
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2612540744543161115}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 27fe232f3e4c5de47a6fae8bba618280, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OVRCombinedEye
+  ovrGaze: {fileID: 5968946221219463857}
+--- !u!114 &1845367982143796080
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2612540744543161115}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33ff91d2964055745b918f61e6d0e66b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Gaze_Interactor
+  raycastHits: []
+  gameInteractableObjectsHit: []
+  verboseLogging: 0
 --- !u!1 &2765139694491939561
 GameObject:
   m_ObjectHideFlags: 0
@@ -2845,6 +2907,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3344c5ae0bff7d64c8e33d8417c08bb9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _dataManager: {fileID: 0}
   _leftEyeGaze: {fileID: 6774207975443248828}
   _rightEyeGaze: {fileID: 3504084316208182009}
   _body: {fileID: 0}
@@ -3638,6 +3701,7 @@ Transform:
   m_Children:
   - {fileID: 5541024833334955867}
   - {fileID: 5340658035029551892}
+  - {fileID: 5561697173880143313}
   m_Father: {fileID: 6414614945201203020}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4514054569132333405
@@ -4752,6 +4816,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _ovrCameraRig: {fileID: 8911603395741930193}
+  _leftHand: {fileID: 0}
+  _rightHand: {fileID: 0}
   _requireOvrHands: 1
 --- !u!114 &1983086235503575785
 MonoBehaviour:
@@ -5156,6 +5222,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _broadcasters: []
   _handler: {fileID: 1471271691729123294}
+  _handlers: []
 --- !u!1 &8125667166076795224
 GameObject:
   m_ObjectHideFlags: 0
