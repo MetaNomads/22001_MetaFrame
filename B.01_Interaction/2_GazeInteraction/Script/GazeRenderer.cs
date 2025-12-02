@@ -1,5 +1,5 @@
 using UnityEngine;
-using MetaFrame.Data;
+using MetaNomads.Data;
 using Unity.XR.CoreUtils;
 
 public class GazeRenderer : MonoBehaviour
@@ -20,7 +20,7 @@ public class GazeRenderer : MonoBehaviour
 
     [Header("Data Source Reference")]
     [Tooltip("Reference to the OVRGaze component")]
-    public OVRGaze ovrGaze;
+    public Gaze ovrGaze;
 
     private LineRenderer lineRenderer;
     private Vector3 smoothedGazeDirection;

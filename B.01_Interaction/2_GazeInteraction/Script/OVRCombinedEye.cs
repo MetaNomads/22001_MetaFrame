@@ -1,10 +1,10 @@
 using UnityEngine;
-
+using MetaNomads.Data;
 public class OVRCombinedEye : MonoBehaviour
 {
 
     [SerializeField]
-    private OVRGaze ovrGaze;
+    private Gaze ovrGaze;
 
     // Update is called once per frame
     void Update()
@@ -21,12 +21,12 @@ public class OVRCombinedEye : MonoBehaviour
     private Vector3 DetermineCombinedPositionFromOVRGaze()
     {
         //Temporarily using the left eye position
-        return ovrGaze.GetEyePosition(OVRGaze.Eye.Left);
+        return ovrGaze.GetEyePosition(Gaze.GazeData.Left);
     }
 
     private Quaternion DetermineCombinedRotationFromOVRGaze()
     {
         //Temporarily using the right eye position
-        return ovrGaze.GetGazeVector(OVRGaze.Eye.Left);
+        return new Quaternion(0,0,0,0);
     }
 }

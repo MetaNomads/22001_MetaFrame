@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.UI;
 #endregion
 
-namespace MetaFrame.Interaction.GazeInteraction
+namespace MetaNomads.Interaction.GazeInteraction
 {
     public class GazeReticle : MonoBehaviour
     {

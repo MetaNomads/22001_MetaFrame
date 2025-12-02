@@ -4,7 +4,7 @@ using UnityEngine.Events;
 using Oculus.Interaction;
 using Sirenix.OdinInspector;
 
-namespace MetaFrame.Interaction
+namespace MetaNomads.Interaction
 {
     /// <summary>
     /// copied from Oculus.Interaction.InteractableUnityEventWrapper

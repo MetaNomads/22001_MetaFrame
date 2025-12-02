@@ -3,7 +3,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace MetaFrame.Tags.Editor
+namespace MetaNomads.Tags.Editor
 {
 	[CustomEditor(typeof(Taggable))]
 	internal class TaggableEditor : UnityEditor.Editor
