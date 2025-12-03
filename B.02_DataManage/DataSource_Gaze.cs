@@ -30,23 +30,23 @@ namespace MetaNomads.Data
                 //Left Eye Vector
                 if (RecordConfig.LeftEye)
                 {
-                    data["LeftEye"] = GetDataWithGaze(Data.LeftEyePosition, Data.LeftEyeGazeRotation, Data.LeftEyeForward);
+                    data["LeftEye"] = GetDataWithGaze(Data.LeftEyePosition, Data.LeftGazeRotation, Data.LeftGazeForward);
                 }
                 if (RecordConfig.RightEye)
                 {
-                    data["RightEye"] = GetDataWithGaze(Data.RightEyePostion, Data.RightEyeGazeRotation, Data.RightEyeForward);
+                    data["RightEye"] = GetDataWithGaze(Data.RightEyePostion, Data.RightGazeRotation, Data.RightGazeForward);
                 }
                 if (RecordConfig.CombinedEye)
                 {
-                    data["CombinedEye"] = GetDataWithGaze(Data.CombinedEyePosition, Data.CombinedEyeGazeRotation, Data.CombinedEyeForward);
+                    data["CombinedEye"] = GetDataWithGaze(Data.CombinedEyePosition, Data.CombinedGazeRotation, Data.CombinedGazeForward);
                 }
                 if (RecordConfig.Head)
                 {
-                    data["Head"] = GetDataWithGaze(Data.HeadPosition, Data.HeadRotation, Data.HeadForward);
+                    data["Head"] = GetDataWithGaze(Data.HeadPosition, Data.HeadGazeRotation, Data.HeadGazeForward);
                 }
                 if (RecordConfig.Chest)
                 {
-                    data["Chest"] = GetDataWithGaze(Data.ChestPosition, Data.ChestRotation, Data.ChestForward);
+                    data["Chest"] = GetDataWithGaze(Data.ChestPosition, Data.ChestGazeRotation, Data.ChestGazeForward);
                 }
 
             }
@@ -79,31 +79,31 @@ namespace MetaNomads.Data
             }
 
             //Left Eye
-            public Vector3 LeftEyePosition => _ovrGaze.GetEyePosition(Gaze.GazeData.Left);
-            public Quaternion LeftEyeGazeRotation => _ovrGaze.GetGazeRotation(Gaze.GazeData.Left);
-            public Vector3 LeftEyeForward => _ovrGaze.GetGazeForward(Gaze.GazeData.Left);
+            public Vector3? LeftEyePosition => _ovrGaze.GetEyePosition(Gaze.GazeData.Left);
+            public Quaternion? LeftGazeRotation => _ovrGaze.GetGazeRotation(Gaze.GazeData.Left);
+            public Vector3? LeftGazeForward => _ovrGaze.GetGazeForward(Gaze.GazeData.Left);
 
             //Right Eye
-            public Vector3 RightEyePostion => _ovrGaze.GetEyePosition(Gaze.GazeData.Right);
-            public Quaternion RightEyeGazeRotation => _ovrGaze.GetGazeRotation(Gaze.GazeData.Right);
-            public Vector3 RightEyeForward => _ovrGaze.GetGazeForward(Gaze.GazeData.Right);
+            public Vector3? RightEyePostion => _ovrGaze.GetEyePosition(Gaze.GazeData.Right);
+            public Quaternion? RightGazeRotation => _ovrGaze.GetGazeRotation(Gaze.GazeData.Right);
+            public Vector3? RightGazeForward => _ovrGaze.GetGazeForward(Gaze.GazeData.Right);
 
             //Combined Eyes
-            public Vector3 CombinedEyePosition => _ovrGaze.GetCombinedEyePosition();
-            public Quaternion CombinedEyeGazeRotation => _ovrGaze.GetCombinedGazeRotation();
-            public Vector3 CombinedEyeForward => _ovrGaze.GetCombinedGazeForward();
+            public Vector3? CombinedEyePosition => _ovrGaze.GetCombinedEyePosition();
+            public Quaternion? CombinedGazeRotation => _ovrGaze.GetCombinedGazeRotation();
+            public Vector3? CombinedGazeForward => _ovrGaze.GetCombinedGazeForward();
 
             //Chest
-            public Vector3 ChestPosition => _ovrGaze.GetChestPosition();
-            public Quaternion ChestRotation => _ovrGaze.GetChestRotation();
-            public Vector3 ChestForward => _ovrGaze.GetChestForward();
+            public Vector3? ChestPosition => _ovrGaze.GetChestPosition();
+            public Quaternion? ChestGazeRotation => _ovrGaze.GetChestRotation();
+            public Vector3? ChestGazeForward => _ovrGaze.GetChestForward();
 
             //Head
-            public Vector3 HeadPosition => _ovrGaze.GetHeadPosition();
-            public Quaternion HeadRotation => _ovrGaze.GetHeadRotation();
-            public Vector3 HeadForward => _ovrGaze.GetHeadForward();
-        }   
-            
+            public Vector3? HeadPosition => _ovrGaze.GetHeadPosition();
+            public Quaternion? HeadGazeRotation => _ovrGaze.GetHeadRotation();
+            public Vector3? HeadGazeForward => _ovrGaze.GetHeadForward();
+        }
+
 
 
 
@@ -131,6 +131,26 @@ namespace MetaNomads.Data
             [Tooltip("Head")]
             public bool Head = true;
         }
+
+        /// <summary>
+        // Utility for extracting position, rotation, and forward for the data source gaze
+        /// <summary>
+        protected object GetDataWithGaze(Vector3? position, Quaternion? rotation, Vector3? forward)
+        {
+            return new
+            {
+                Position = position.HasValue
+                    ? new float[] { position.Value.x, position.Value.y, position.Value.z }
+                    : null,
+                Rotation = rotation.HasValue
+                    ? new float[] { rotation.Value.x, rotation.Value.y, rotation.Value.z, rotation.Value.w }
+                    : null,
+                Forward = forward.HasValue
+                    ? new float[] { forward.Value.x, forward.Value.y, forward.Value.z }
+                    : null
+            };
+        }
+
     }
 }
 
