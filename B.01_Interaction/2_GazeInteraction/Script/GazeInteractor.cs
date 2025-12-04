@@ -1,10 +1,10 @@
 #region Includes
 using UnityEngine;
 using UnityEngine.Events;
-using MetaNomads.Tags;
+using MetaFrame.Tags;
 #endregion
 
-namespace MetaNomads.Interaction.GazeInteraction
+namespace MetaFrame.Interaction.GazeInteraction
 {
     public class GazeInteractor : MonoBehaviour
     {

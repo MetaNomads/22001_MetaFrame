@@ -4,7 +4,7 @@ using Sirenix.OdinInspector;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace MetaNomads.Tags
+namespace MetaFrame.Tags
 {
 	[CreateAssetMenu(menuName = "ToolBox/Tags/Tag")]
 #if ODIN_INSPECTOR

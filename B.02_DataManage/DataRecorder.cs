@@ -8,7 +8,7 @@ using UnityEngine;
 using Sirenix.OdinInspector;
 using Newtonsoft.Json;
 
-namespace MetaNomads.Data
+namespace MetaFrame.Data
 {
     public class DataRecorder : MonoBehaviour
     {

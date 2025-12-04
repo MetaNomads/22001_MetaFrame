@@ -1,156 +1,204 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Mathematics;
+using Unity.XR.CoreUtils;
 
-namespace MetaNomads.Data
+namespace MetaFrame.Data
 {
     public class DataSource_Gaze : DataSourceBase<DataSource_Gaze.DataStructure, DataSource_Gaze.RecordingConfig>
     {
+        [SerializeField] private OVREyeGaze _leftEyeGaze;
+        [SerializeField] private OVREyeGaze _rightEyeGaze;
+        [SerializeField] private GameObject _centerEyeGaze;
 
-        public override string SourceName => "Eyes";
-
-        [SerializeField] internal Gaze _ovrGaze;
+        public override string SourceName => "Gaze";
 
         protected override DataStructure CreateData()
         {
-            return new DataStructure(this, _ovrGaze);
+            return new DataStructure(this, _leftEyeGaze, _rightEyeGaze, _centerEyeGaze);
         }
-
-
-
-        public override Dictionary<string, object> CollectData()
-        {
-
-            // Debug.Log("Eye Referenced");
-            var data = new Dictionary<string, object>();
-
-            //In case there is a way to ensure the eye tracker is functional, add it here.
-            if (true)
-            {
-                //Left Eye Vector
-                if (RecordConfig.LeftEye)
-                {
-                    data["LeftEye"] = GetDataWithGaze(Data.LeftEyePosition, Data.LeftGazeRotation, Data.LeftGazeForward);
-                }
-                if (RecordConfig.RightEye)
-                {
-                    data["RightEye"] = GetDataWithGaze(Data.RightEyePostion, Data.RightGazeRotation, Data.RightGazeForward);
-                }
-                if (RecordConfig.CombinedEye)
-                {
-                    data["CombinedEye"] = GetDataWithGaze(Data.CombinedEyePosition, Data.CombinedGazeRotation, Data.CombinedGazeForward);
-                }
-                if (RecordConfig.Head)
-                {
-                    data["Head"] = GetDataWithGaze(Data.HeadPosition, Data.HeadGazeRotation, Data.HeadGazeForward);
-                }
-                if (RecordConfig.Chest)
-                {
-                    data["Chest"] = GetDataWithGaze(Data.ChestPosition, Data.ChestGazeRotation, Data.ChestGazeForward);
-                }
-
-            }
-
-            return data;
-        }
-
-
-
-
-
 
         /*=========================================================================================================================*/
         /// <summary>
-        /// Eyes Data Structure - Clean property-based access for consistent typing
+        /// Gaze Data Structure - Clean property-based access for consistent static typing
         /// </summary>
 
         public class DataStructure
         {
             private readonly DataSource_Gaze _source;
-            private readonly Gaze _ovrGaze;
+            private readonly OVREyeGaze _leftEyeGaze;
+            private readonly OVREyeGaze _rightEyeGaze;
+            private readonly GameObject _centerEyeGaze;
 
-
-
-            //Data referenced from the GazeRayCombined script as to avoid overlap and ensure updates are occuring in a single script.
-            public DataStructure(DataSource_Gaze source, Gaze OVRGaze)
+            public DataStructure(DataSource_Gaze source, OVREyeGaze leftEyeGaze, OVREyeGaze rightEyeGaze, GameObject centerEyeGaze)
             {
                 _source = source;
-                _ovrGaze = OVRGaze;
+                _leftEyeGaze = leftEyeGaze;
+                _rightEyeGaze = rightEyeGaze;
+                _centerEyeGaze = centerEyeGaze;
             }
 
-            //Left Eye
-            public Vector3? LeftEyePosition => _ovrGaze.GetEyePosition(Gaze.GazeData.Left);
-            public Quaternion? LeftGazeRotation => _ovrGaze.GetGazeRotation(Gaze.GazeData.Left);
-            public Vector3? LeftGazeForward => _ovrGaze.GetGazeForward(Gaze.GazeData.Left);
+            // Eye Gaze Data Properties
+            public GazeData LeftEye => GetSingleEyeData(_leftEyeGaze?.transform);
+            public GazeData RightEye => GetSingleEyeData(_rightEyeGaze?.transform);
+            public GazeData CombinedEye => GetGazeData(_centerEyeGaze?.transform);
+            public GazeData Head => GetGazeData(_source.dataManager?.Body?.Data?.Head);
+            public GazeData Chest => GetGazeData(_source.dataManager?.Body?.Data?.Chest);
 
-            //Right Eye
-            public Vector3? RightEyePostion => _ovrGaze.GetEyePosition(Gaze.GazeData.Right);
-            public Quaternion? RightGazeRotation => _ovrGaze.GetGazeRotation(Gaze.GazeData.Right);
-            public Vector3? RightGazeForward => _ovrGaze.GetGazeForward(Gaze.GazeData.Right);
+            // Nested GazeData class for structured gaze information
+            public class GazeData
+            {
+                public Vector3? Position { get; }
+                public Quaternion? Rotation { get; }
+                public Vector3? GazeForward { get; }
+                public Vector3? GazePoint { get; }
 
-            //Combined Eyes
-            public Vector3? CombinedEyePosition => _ovrGaze.GetCombinedEyePosition();
-            public Quaternion? CombinedGazeRotation => _ovrGaze.GetCombinedGazeRotation();
-            public Vector3? CombinedGazeForward => _ovrGaze.GetCombinedGazeForward();
+                public GazeData(Vector3? position, Quaternion? rotation, Vector3? forward, Vector3? point)
+                {
+                    Position = position;
+                    Rotation = rotation;
+                    GazeForward = forward;
+                    GazePoint = point;
+                }
 
-            //Chest
-            public Vector3? ChestPosition => _ovrGaze.GetChestPosition();
-            public Quaternion? ChestGazeRotation => _ovrGaze.GetChestRotation();
-            public Vector3? ChestGazeForward => _ovrGaze.GetChestForward();
+                public bool IsAllNull =>
+                    Position == null && Rotation == null && GazeForward == null && GazePoint == null;
+            }
 
-            //Head
-            public Vector3? HeadPosition => _ovrGaze.GetHeadPosition();
-            public Quaternion? HeadGazeRotation => _ovrGaze.GetHeadRotation();
-            public Vector3? HeadGazeForward => _ovrGaze.GetHeadForward();
+
+            // Helper method to get single eye gaze data with null safety
+            private GazeData GetSingleEyeData(Transform gazeTransform)
+            {
+                if (gazeTransform == null)
+                    return null;
+
+                try
+                {
+                    Vector3? position = gazeTransform.GetWorldPose().position;
+                    Quaternion? rotation = gazeTransform.localRotation;
+                    Vector3? forward = gazeTransform.forward;
+
+                    var data = new GazeData(position, rotation, forward, null);
+                    return data.IsAllNull ? null : data;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+            
+            // Helper method to get gaze data with null safety
+            private GazeData GetGazeData(Transform gazeTransform)
+            {
+                if (gazeTransform == null)
+                    return null;
+
+                try
+                {
+                    Vector3? position = gazeTransform.position;
+                    Quaternion? rotation = gazeTransform.rotation;
+                    Vector3? forward = gazeTransform.forward;
+                    Vector3? point = GetGazePoint(gazeTransform);
+
+                    var data = new GazeData(position, rotation, forward, point);
+                    return data.IsAllNull ? null : data;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            // Helper method to get gaze point via raycast (update after merge)
+            private Vector3? GetGazePoint(Transform gazeTransform)
+            {
+                if (gazeTransform == null)
+                    return null;
+
+                try
+                {
+                    RaycastHit hit;
+                    if (Physics.Raycast(gazeTransform.position, gazeTransform.forward, out hit, Mathf.Infinity))
+                    {
+                        return hit.point;
+                    }
+                }
+                catch
+                {
+                    // Raycast failed, return null
+                }
+
+                return null;
+            }
         }
-
-
-
-
-
-
-
         /*=========================================================================================================================*/
         /// <summary>
-        /// Eye Recording Configuration
+        /// Gaze Recording Configuration
         /// </summary>
 
         [Serializable]
         public class RecordingConfig
         {
-            [Header("Eye Options")]
-            [Tooltip("Left Eye")]
+            [Tooltip("Left Eye gaze data")]
             public bool LeftEye = true;
-            [Tooltip("Right Eye")]
+            [Tooltip("Right Eye gaze data")]
             public bool RightEye = true;
-            [Tooltip("Combined Eyes")]
+            [Tooltip("Combined Eyes gaze data")]
             public bool CombinedEye = true;
-            [Header("Body Options")]
-            [Tooltip("Chest")]
-            public bool Chest = true;
-            [Tooltip("Head")]
+            [Tooltip("Head gaze data")]
             public bool Head = true;
+            [Tooltip("Chest gaze data")]
+            public bool Chest = true;
         }
-
-        /// <summary>
-        // Utility for extracting position, rotation, and forward for the data source gaze
-        /// <summary>
-        protected object GetDataWithGaze(Vector3? position, Quaternion? rotation, Vector3? forward)
+        
+        public override Dictionary<string, object> CollectData()
         {
-            return new
-            {
-                Position = position.HasValue
-                    ? new float[] { position.Value.x, position.Value.y, position.Value.z }
-                    : null,
-                Rotation = rotation.HasValue
-                    ? new float[] { rotation.Value.x, rotation.Value.y, rotation.Value.z, rotation.Value.w }
-                    : null,
-                Forward = forward.HasValue
-                    ? new float[] { forward.Value.x, forward.Value.y, forward.Value.z }
-                    : null
-            };
+            var data = new Dictionary<string, object>();
+
+            if (RecordConfig.LeftEye) data["leftEye"] = GetGazeDataDictionary(Data.LeftEye);
+            if (RecordConfig.RightEye) data["rightEye"] = GetGazeDataDictionary(Data.RightEye);
+            if (RecordConfig.CombinedEye) data["combinedEye"] = GetGazeDataDictionary(Data.CombinedEye);
+            if (RecordConfig.Head) data["head"] = GetGazeDataDictionary(Data.Head);
+            if (RecordConfig.Chest) data["chest"] = GetGazeDataDictionary(Data.Chest);
+
+            return data;
         }
 
+        /// <summary>
+        /// Convert GazeData to dictionary with proper Unity type conversion
+        /// </summary>
+        private Dictionary<string, object> GetGazeDataDictionary(DataStructure.GazeData gazeData)
+        {
+            if (gazeData == null) return null;
+
+            var dict = new Dictionary<string, object>();
+
+            if (gazeData.Position.HasValue)
+            {
+                var pos = gazeData.Position.Value;
+                dict["Position"] = new float[] { pos.x, pos.y, pos.z };
+            }
+
+            if (gazeData.Rotation.HasValue)
+            {
+                var rot = gazeData.Rotation.Value;
+                dict["Rotation"] = new float[] { rot.x, rot.y, rot.z, rot.w };
+            }
+
+            if (gazeData.GazeForward.HasValue)
+            {
+                var fwd = gazeData.GazeForward.Value;
+                dict["GazeForward"] = new float[] { fwd.x, fwd.y, fwd.z };
+            }
+
+            if (gazeData.GazePoint.HasValue)
+            {
+                var point = gazeData.GazePoint.Value;
+                dict["GazePoint"] = new float[] { point.x, point.y, point.z };
+            }
+
+            return dict.Count > 0 ? dict : null;
+        }
     }
 }
-

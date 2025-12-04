@@ -5,12 +5,12 @@ using Sirenix.OdinInspector;
 using Oculus.Interaction;
 using Oculus.Interaction.Input;
 using Oculus.Interaction.PoseDetection;
-using MetaNomads.Interaction;
+using MetaFrame.Interaction;
 using Sirenix.OdinInspector.Demos;
 using NUnit.Framework;
 
 
-namespace MetaNomads.Data
+namespace MetaFrame.Data
 {
     public class DataSource_Hand : DataSourceBase<DataSource_Hand.DataStructure, DataSource_Hand.RecordingConfig>
     {
@@ -23,7 +23,7 @@ namespace MetaNomads.Data
         [SerializeField] private FingerFeatureStateProvider _rightFingerFeatureStateProvider;
 
         public override string SourceName => "Hand";
-
+        
         protected override DataStructure CreateData()
         {
             return new DataStructure(this,

@@ -1,12 +1,12 @@
 using Unity.XR.CoreUtils;
 using UnityEngine;
 
-namespace MetaNomads.Interaction
+namespace MetaFrame.Interaction
 {
     public class CenterEye : MonoBehaviour
     {
-        private Transform _leftEye;
-        private Transform _rightEye;
+        [SerializeField] private Transform _leftEye;
+        [SerializeField] private Transform _rightEye;
 
         void LateUpdate()
         {

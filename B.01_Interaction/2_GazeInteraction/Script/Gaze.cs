@@ -1,10 +1,10 @@
-using MetaNomads.Data;
+using MetaFrame.Data;
 using Unity.Mathematics;
 using Unity.XR.CoreUtils;
 using UnityEngine;
 using static OVRPlugin;
 
-namespace MetaNomads.Data
+namespace MetaFrame.Data
 {   
     public class Gaze: MonoBehaviour
     {
@@ -21,35 +21,26 @@ namespace MetaNomads.Data
         [SerializeField] private OVREyeGaze _leftEyeGaze;
         [SerializeField] private OVREyeGaze _rightEyeGaze;
         [SerializeField] private GameObject _centerEyeGaze;
-
-
-        [SerializeField] private GameObject _cameraRig;
-
-        public Transform? GetGazeData(GazeData eye)
-        {
-            switch (eye)
-            {
-                case GazeData.Left:
-                    return _leftEyeGaze.transform;
-                case GazeData.Right:
-                    return _rightEyeGaze.transform;
-                case GazeData.Combined:
-                    return _centerEyeGaze.transform;
-                case GazeData.Head:
-                    return _dataManager?.Body?.Data?.Head.transform;
-                case GazeData.Chest:
-                    return _dataManager?.Body?.Data?.Chest.transform;
-                default:
-                    return null;
-            }
-        }
-
-
-
-
-
-
-
+        
+        // public Transform? GetGazeTransform(GazeData eye)
+        // {
+        //     switch (eye)
+        //     {
+        //         case GazeData.Left:
+        //             return _leftEyeGaze.transform;
+        //         case GazeData.Right:
+        //             return _rightEyeGaze.transform;
+        //         case GazeData.Combined:
+        //             return _centerEyeGaze.transform;
+        //         case GazeData.Head:
+        //             return _dataManager?.Body?.Data?.Head.transform;
+        //         case GazeData.Chest:
+        //             return _dataManager?.Body?.Data?.Chest.transform;
+        //         default:
+        //             return null;
+        //     }
+        // }
+        
 
 
         //public Vector3? GetEyePosition(GazeData eye)

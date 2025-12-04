@@ -1,7 +1,7 @@
 using UnityEngine;
-using MetaNomads.Data;
+using MetaFrame.Data;
 
-namespace MetaNomads.Interaction
+namespace MetaFrame.Interaction
 {   
     public class Gaze_Interactable_Object : MonoBehaviour
     {
