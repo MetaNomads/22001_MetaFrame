@@ -19,8 +19,8 @@ public class GazeRenderer : MonoBehaviour
     public float positionThreshold = 0.01f;
 
     [Header("Data Source Reference")]
-    [Tooltip("Reference to the OVRGaze component")]
-    public Gaze ovrGaze;
+    [Tooltip("Reference to the gaze component")]
+    public GameObject _gaze;
 
     private LineRenderer lineRenderer;
     private Vector3 smoothedGazeDirection;
@@ -61,19 +61,19 @@ public class GazeRenderer : MonoBehaviour
     //{
     //    if (!isEnabled) return;
 
-    //    if (ovrGaze == null)
+    //    if (_gaze == null)
     //    {
     //        Debug.LogWarning("Eye data source not assigned or data not available.");
     //        return;
     //    }
 
     //    // Get eye positions to calculate the origin point
-    //    Vector3 leftEyePos = ovrGaze.GetEyePosition(OVRGaze.Eye.Left);
-    //    Vector3 rightEyePos = ovrGaze.GetEyePosition(OVRGaze.Eye.Right);
+    //    Vector3 leftEyePos = _gaze.GetEyePosition(_gaze.Eye.Left);
+    //    Vector3 rightEyePos = _gaze.GetEyePosition(_gaze.Eye.Right);
     //    Vector3 eyeOrigin = (leftEyePos + rightEyePos) * 0.5f;
 
     //    // Get combined gaze direction
-    //    Vector3 combinedGazeDirection = ovrGaze.GetGazeVector(OVRGaze.Eye.Combined);
+    //    Vector3 combinedGazeDirection = _gaze.GetGazeVector(_gaze.Eye.Combined);
 
     //    // Validate gaze direction
     //    if (combinedGazeDirection.magnitude < 0.01f)

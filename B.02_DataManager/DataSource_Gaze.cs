@@ -3,20 +3,19 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
 using Unity.XR.CoreUtils;
+using MetaFrame.Interaction;
 
 namespace MetaFrame.Data
 {
     public class DataSource_Gaze : DataSourceBase<DataSource_Gaze.DataStructure, DataSource_Gaze.RecordingConfig>
     {
-        [SerializeField] private OVREyeGaze _leftEyeGaze;
-        [SerializeField] private OVREyeGaze _rightEyeGaze;
-        [SerializeField] private GameObject _centerEyeGaze;
+        [SerializeField] private GazePose _gaze;
 
         public override string SourceName => "Gaze";
 
         protected override DataStructure CreateData()
         {
-            return new DataStructure(this, _leftEyeGaze, _rightEyeGaze, _centerEyeGaze);
+            return new DataStructure(this, _gaze.LeftEye, _gaze.RightEye, _gaze.CenterEye, _gaze.HeadGaze, _gaze.ChestGaze);
         }
 
         /*=========================================================================================================================*/
@@ -27,24 +26,28 @@ namespace MetaFrame.Data
         public class DataStructure
         {
             private readonly DataSource_Gaze _source;
-            private readonly OVREyeGaze _leftEyeGaze;
-            private readonly OVREyeGaze _rightEyeGaze;
-            private readonly GameObject _centerEyeGaze;
+            private readonly Transform _leftEye;
+            private readonly Transform _rightEye;
+            private readonly Transform _centerEye;
+            private readonly Transform _headGaze;
+            private readonly Transform _chestGaze;
 
-            public DataStructure(DataSource_Gaze source, OVREyeGaze leftEyeGaze, OVREyeGaze rightEyeGaze, GameObject centerEyeGaze)
+            public DataStructure(DataSource_Gaze source, Transform leftEye, Transform rightEye, Transform centerEye, Transform headGaze, Transform chestGaze)
             {
                 _source = source;
-                _leftEyeGaze = leftEyeGaze;
-                _rightEyeGaze = rightEyeGaze;
-                _centerEyeGaze = centerEyeGaze;
+                _leftEye = leftEye;
+                _rightEye = rightEye;
+                _centerEye = centerEye;
+                _headGaze = headGaze;
+                _chestGaze = chestGaze;
             }
 
             // Eye Gaze Data Properties
-            public GazeData LeftEye => GetSingleEyeData(_leftEyeGaze?.transform);
-            public GazeData RightEye => GetSingleEyeData(_rightEyeGaze?.transform);
-            public GazeData CombinedEye => GetGazeData(_centerEyeGaze?.transform);
-            public GazeData Head => GetGazeData(_source.dataManager?.Body?.Data?.Head);
-            public GazeData Chest => GetGazeData(_source.dataManager?.Body?.Data?.Chest);
+            public GazeData LeftEye => GetSingleEyeData(_leftEye);
+            public GazeData RightEye => GetSingleEyeData(_rightEye);
+            public GazeData CombinedEye => GetGazeData(_centerEye);
+            public GazeData Head => GetGazeData(_headGaze);
+            public GazeData Chest => GetGazeData(_chestGaze);
 
             // Nested GazeData class for structured gaze information
             public class GazeData
@@ -75,8 +78,8 @@ namespace MetaFrame.Data
 
                 try
                 {
-                    Vector3? position = gazeTransform.GetWorldPose().position;
-                    Quaternion? rotation = gazeTransform.localRotation;
+                    Vector3? position = gazeTransform.position;
+                    Quaternion? rotation = gazeTransform.rotation;
                     Vector3? forward = gazeTransform.forward;
 
                     var data = new GazeData(position, rotation, forward, null);
