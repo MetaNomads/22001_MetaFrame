@@ -701,14 +701,14 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8551852}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ebcfcb81e982c8243a7c5fa089aa3671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MetaNomads.Data.TrackingInitializer
-  _enableBodyTracking: 1
-  _enableFaceTracking: 1
-  _enableEyeTracking: 1
+  _enableBodyTracking: 0
+  _enableFaceTracking: 0
+  _enableEyeTracking: 0
   _useVisualFaceTracking: 1
   _useAudioFaceTracking: 1
   _maxRetryAttempts: 999
@@ -117294,13 +117294,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2040103276}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0.38268343, z: 0, w: 0.92387956}
-  m_LocalPosition: {x: 7.601, y: 0, z: -3.62}
+  m_LocalRotation: {x: -0, y: 1, z: -0, w: 0}
+  m_LocalPosition: {x: 7.708009, y: 0, z: -3.69}
   m_LocalScale: {x: -1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1155282174}
-  m_LocalEulerAnglesHint: {x: 0, y: -45, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!114 &2040103278
 MonoBehaviour:
   m_ObjectHideFlags: 0
