@@ -11,11 +11,15 @@ namespace MetaFrame.Data
     {
         [SerializeField] private GazePose _gaze;
 
+        [SerializeField] private Gaze_Interactor _interactor;
+
         public override string SourceName => "Gaze";
+
+
 
         protected override DataStructure CreateData()
         {
-            return new DataStructure(this, _gaze.LeftEye, _gaze.RightEye, _gaze.CenterEye, _gaze.HeadGaze, _gaze.ChestGaze);
+            return new DataStructure(this, _gaze.LeftEye, _gaze.RightEye, _gaze.CenterEye, _gaze.HeadGaze, _gaze.ChestGaze, _interactor);
         }
 
         /*=========================================================================================================================*/
@@ -31,8 +35,9 @@ namespace MetaFrame.Data
             private readonly Transform _centerEye;
             private readonly Transform _headGaze;
             private readonly Transform _chestGaze;
+            private readonly Gaze_Interactor _interactor;
 
-            public DataStructure(DataSource_Gaze source, Transform leftEye, Transform rightEye, Transform centerEye, Transform headGaze, Transform chestGaze)
+            public DataStructure(DataSource_Gaze source, Transform leftEye, Transform rightEye, Transform centerEye, Transform headGaze, Transform chestGaze, Gaze_Interactor interactor)
             {
                 _source = source;
                 _leftEye = leftEye;
@@ -40,6 +45,7 @@ namespace MetaFrame.Data
                 _centerEye = centerEye;
                 _headGaze = headGaze;
                 _chestGaze = chestGaze;
+                _interactor = interactor;
             }
 
             // Eye Gaze Data Properties
@@ -102,6 +108,7 @@ namespace MetaFrame.Data
                     Vector3? position = gazeTransform.position;
                     Quaternion? rotation = gazeTransform.rotation;
                     Vector3? forward = gazeTransform.forward;
+                    //Vector3? point = _interactor.GetCollisionPoint(gazeTransform);
                     Vector3? point = GetGazePoint(gazeTransform);
 
                     var data = new GazeData(position, rotation, forward, point);

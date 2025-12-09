@@ -8,6 +8,7 @@ using static Oculus.Interaction.Input.TrackingToWorldTransformerOVR;
 using Oculus.Interaction.PoseDetection;
 using MetaFrame.Interaction;
 using System.Collections;
+using MetaNomads.Data;
 
 namespace MetaFrame.Data
 {   
@@ -22,6 +23,8 @@ namespace MetaFrame.Data
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_FACS FACS;
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Body Body;
         [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Gaze Gaze;
+        [BoxGroup("DataSource Config")][SerializeField] internal DataSource_Interactable Interactable;
+
 
         // Plugin architecture for extensibility
         internal List<IDataSource> _dataSources = new List<IDataSource>();
@@ -31,6 +34,7 @@ namespace MetaFrame.Data
         public DataSource_Body.DataStructure BodyData => Body?.Data;
         public DataSource_Hand.DataStructure HandData => Hand?.Data;
         public DataSource_Gaze.DataStructure GazeData => Gaze?.Data;
+        public DataSource_Interactable.DataStructure InteractableData => Interactable?.Data;
 
         protected virtual void Start()
         {
@@ -48,6 +52,7 @@ namespace MetaFrame.Data
             if (FACS != null) FACS.Initialize(this);
             if (Body != null) Body.Initialize(this);
             if (Gaze != null) Gaze.Initialize(this);
+            if (Interactable !=  null) Interactable.Initialize(this);
         }
 
         /// <summary>
