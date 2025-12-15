@@ -34,9 +34,13 @@ namespace MetaFrame.Data
 
         protected virtual void Start()
         {
-            StartCoroutine(TestDebugLogs());
             // targetVerticalVector = OffsetVectorWithRotation(GetVerticalVector());
             InitializeDataSources();
+        }
+
+        private void Update()
+        {
+            StartCoroutine(TestDebugLogs());
         }
 
         /// <summary>
@@ -68,11 +72,16 @@ namespace MetaFrame.Data
             yield return new WaitForSeconds(0.5f); // Extra delay to ensure everything is ready
 
             // Left Eye
-            if (Gaze.Data.LeftEye != null)
+            if (Gaze.Data.LeftEye != null && Gaze.Data.RightEye != null)
             {
                 Debug.Log($"Data Test - Left Eye Position: {Gaze.Data.LeftEye.Position}");
                 Debug.Log($"Data Test - Left Eye Rotation: {Gaze.Data.LeftEye.Rotation?.eulerAngles}");
                 Debug.Log($"Data Test - Left Eye Forward: {Gaze.Data.LeftEye.GazeForward}");
+                Debug.DrawRay(Gaze.Data.LeftEye.Position.Value, Gaze.Data.LeftEye.GazeForward.Value * 15f, Color.green);
+                Debug.Log($"Data Test - Right Eye Position: {Gaze.Data.RightEye.Position}");
+                Debug.Log($"Data Test - Right Eye Rotation: {Gaze.Data.RightEye.Rotation?.eulerAngles}");
+                Debug.Log($"Data Test - Right Eye Forward: {Gaze.Data.RightEye.GazeForward}");
+                Debug.DrawRay(Gaze.Data.RightEye.Position.Value, Gaze.Data.RightEye.GazeForward.Value * 15f, Color.red);
             }
         }
     }

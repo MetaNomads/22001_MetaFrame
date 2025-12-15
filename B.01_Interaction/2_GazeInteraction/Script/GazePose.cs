@@ -14,10 +14,10 @@ namespace MetaFrame.Interaction
         [SerializeField] private Transform _chestGaze;
 
         public Transform LeftEye => _leftEye != null ? _leftEye : null;
-        public Transform RightEye => _rightEye != null ? _leftEye : null;
-        public Transform CenterEye => _centerEye != null ? _leftEye : null;
-        public Transform HeadGaze => _headGaze != null ? _leftEye : null;
-        public Transform ChestGaze => _chestGaze != null ? _leftEye : null;
+        public Transform RightEye => _rightEye != null ? _rightEye : null;
+        public Transform CenterEye => _centerEye != null ? _centerEye : null;
+        public Transform HeadGaze => _headGaze != null ? _headGaze : null;
+        public Transform ChestGaze => _chestGaze != null ? _chestGaze : null;
 
         /*=========================================================================================================================*/
         /// <summary>
