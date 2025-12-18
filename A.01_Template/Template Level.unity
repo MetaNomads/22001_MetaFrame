@@ -3803,6 +3803,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &87316345
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6416,6 +6417,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &151215346
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8379,6 +8381,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &178973440
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10458,6 +10461,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!54 &215553695
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -11618,6 +11622,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &229569010
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21325,6 +21330,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!54 &442999080
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -34288,6 +34294,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &566033418
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -34732,6 +34739,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 86fda5ce347f35d44a5c6faee65c6679, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _hand: {fileID: 0}
   _shapeRecognizerActiveState: {fileID: 236418287}
   _fingerFeatureDebugVisualPrefab: {fileID: 9164247537266964908, guid: 072f28eaf071f834e82a66e5843572c9,
     type: 3}
@@ -44982,6 +44990,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!1 &784778358
 GameObject:
   m_ObjectHideFlags: 0
@@ -53650,6 +53659,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!54 &896220658
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -79888,6 +79898,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &1344236850
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -82655,6 +82666,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &1390910940
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -92701,6 +92713,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &1555853942
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -101292,6 +101305,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!54 &1733674581
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -105923,6 +105937,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &1824318903
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -111722,6 +111737,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &1919162516
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -114459,6 +114475,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &1979653204
 MonoBehaviour:
   m_ObjectHideFlags: 0

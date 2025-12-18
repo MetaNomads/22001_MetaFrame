@@ -6,8 +6,6 @@ using Oculus.Interaction;
 using Oculus.Interaction.Input;
 using Oculus.Interaction.PoseDetection;
 using MetaFrame.Interaction;
-using Sirenix.OdinInspector.Demos;
-using NUnit.Framework;
 
 
 namespace MetaFrame.Data
