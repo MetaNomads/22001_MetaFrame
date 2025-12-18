@@ -46,7 +46,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7e933e81d3c20c74ea6fdc708a67e3a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  useRecommendedMSAALevel: 1
   _monoscopic: 0
   _sharpenType: 262144
   _enableDynamicResolution: 0
@@ -101,6 +100,7 @@ MonoBehaviour:
   requestEyeTrackingPermissionOnStartup: 1
   requestScenePermissionOnStartup: 1
   requestRecordAudioPermissionOnStartup: 1
+  requestPassthroughCameraAccessPermissionOnStartup: 0
   _localDimming: 1
   _trackingOriginType: 1
   usePositionTracking: 1
@@ -178,17 +178,64 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7991834286055111014, guid: f73a444655dfa694bb9195095ddf6c18,
+        type: 3}
+      propertyPath: Gaze
+      value: 
+      objectReference: {fileID: 3736450948027984990}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 4671476556985065058, guid: f73a444655dfa694bb9195095ddf6c18,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 4125215286663979837}
   m_SourcePrefab: {fileID: 100100000, guid: f73a444655dfa694bb9195095ddf6c18, type: 3}
+--- !u!114 &3736450948027984990 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2622570220983134550, guid: f73a444655dfa694bb9195095ddf6c18,
+    type: 3}
+  m_PrefabInstance: {fileID: 1711288623264335112}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88508287bed3eb54cbde791ca079f0f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!4 &3994204352782314630 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2364939963746625934, guid: f73a444655dfa694bb9195095ddf6c18,
     type: 3}
   m_PrefabInstance: {fileID: 1711288623264335112}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &6299371230436678506 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4671476556985065058, guid: f73a444655dfa694bb9195095ddf6c18,
+    type: 3}
+  m_PrefabInstance: {fileID: 1711288623264335112}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &4125215286663979837
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6299371230436678506}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebcfcb81e982c8243a7c5fa089aa3671, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MetaNomads.Data.TrackingInitializer
+  _enableBodyTracking: 0
+  _enableFaceTracking: 0
+  _enableEyeTracking: 0
+  _useVisualFaceTracking: 1
+  _useAudioFaceTracking: 1
+  _maxRetryAttempts: 999
+  _retryFrequency: 0.5
+  _initializationDelay: 0.5
 --- !u!1001 &6689339532314144646
 PrefabInstance:
   m_ObjectHideFlags: 0

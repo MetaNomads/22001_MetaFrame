@@ -1,181 +1,130 @@
-#region Includes
 using UnityEngine;
-using UnityEngine.Events;
-using MetaFrame.Tags;
-#endregion
+using System.Collections.Generic;
+using MetaNomads.Interaction;
+using UnityEngine.Rendering;
+using MetaFrame.Utilities.Editor;
 
 namespace MetaFrame.Interaction.GazeInteraction
 {
     public class GazeInteractor : MonoBehaviour
     {
-        #region Variables
 
-        [Header("Configuration")]
-        [SerializeField] private GameObject reticle;
-        private LineRenderer lineRenderer;
-        [SerializeField] private float _rayShiftDown = 0.025f;
-        [SerializeField] private float _maxDetectionDistance;
-        [SerializeField] private float _minDetectionDistance;
-        [SerializeField] private float _timeToActivate = 1.0f;
+        //For managing the Raycast Layer Mask
+        [Header("set layer masks to ignore for raycast")]
+        [SerializeField]
+        private List<LayerMask> layerMasksToIgnore = new List<LayerMask>();
+        private LayerMask layerMask;
 
-        [Tooltip("Raycast will only hit selected layer")]
-        [SerializeField] private LayerMask _layerMask;
-        [Tooltip("Raycast will only hit selected tags")]
-        [SerializeField] private Tag _tagMask;
+        //For Logging and Testing
+        [Header("realtime debugging")]
+        [SerializeField]
+        private bool showRayAndHitList = false;
+        [Header("display raycast hits list, DO NOT edit")]
+        public List<GameObject> raycastHits = new List<GameObject>();
 
-        public Material defaultTargetedMaterial;
-        [Tooltip("The highlight material to use when pulling")]
-        public Material defaultSelectedMaterial;
 
-        [Header("Events")]  
-        public UnityEvent OnGazeActivated; //the moment when gaze is finished
-        public UnityEvent<bool> OnGazeToggle; //On when raycast hits the object, Off when raycast leaves the object
-        public UnityEvent OnGazeEnter; //the moment when gaze is finished
-        public UnityEvent OnGazeExit; //the moment when gaze is finished
+        //For keeping track of data
+        private GameObject currentGazeInteractable;
+        private Vector3? collisionPoint = null;
+        private bool isColliding = false;
 
-        private Ray _ray;
-        private RaycastHit _hit;
-        private Vector3 GazePoint;
-
-        private GazeReticle _reticle;
-        private GazeInteractable _interactable;
-
-        private float _enterStartTime;
-
-        #endregion
-
-        private void Awake()
+        void Awake()
         {
-            
-        }
-
-
-        private void Start()
-        {
-            #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            if(reticle == null) { throw new System.Exception("Missing GazeReticle"); }
-            #endif
-
-            _reticle = Instantiate(reticle.GetComponent<GazeReticle>());
-            _reticle.SetInteractor(this);
-
-            lineRenderer = gameObject.GetComponent<LineRenderer>();
-            lineRenderer.positionCount = 2;
-        }
-        private void Update()
-        {
-            _ray = new Ray(transform.position - transform.up * _rayShiftDown, transform.forward);
-            LineRender(_ray);
-
-            if (Physics.Raycast(_ray, out _hit, _maxDetectionDistance, _layerMask))
+            for (int i = 0; i < layerMasksToIgnore.Count; i++)
             {
-                //raycast will stop when hitting objects outside tagMask
-                if (!_hit.collider.transform.HasTag(_tagMask))
+                layerMask = layerMask | layerMasksToIgnore[i];
+            }
+        }
+
+        // Update is called once per frame
+        void FixedUpdate()
+        {
+            //Shoot the raycast from this GameObject's transform
+            (bool, GameObject, Vector3) raycastData = ShootRaycast();
+            isColliding = raycastData.Item1;
+            currentGazeInteractable = raycastData.Item2;
+            collisionPoint = raycastData.Item3;
+
+            //Draw raycast line for testing
+            if (showRayAndHitList)
+            {
+                Debug.DrawRay(transform.position, transform.forward * 50, Color.magenta);
+            }
+        }
+
+        private (bool, GameObject, Vector3) ShootRaycast()
+        {
+            //Shoot Raycast from this GameObject's transform
+            RaycastHit hit;
+            if (Physics.Raycast(transform.position, transform.forward, out hit, Mathf.Infinity, ~layerMask))
+            {
+                //For logging. It's inefficient so make sure to uncheck "Verbose Logging" in the inspector when not testing the script.
+                Log("Raycast has hit an object named: " + hit.transform.gameObject.name);
+                
+                if (showRayAndHitList)
                 {
-                    return;
-                }
-
-                var distance = Vector3.Distance(transform.position, _hit.transform.position);
-                if (distance < _minDetectionDistance)
-                {
-                    _reticle.Enable(false);
-                    Reset();
-                    return;
-                }
-
-                _reticle.SetTarget(_hit);
-                _reticle.Enable(true);
-
-                var interactable = _hit.collider.transform.GetComponent<GazeInteractable>();
-                if(interactable == null)
-                {
-                    Reset();
-                    return;
-                }
-
-                if (interactable != _interactable)
-                {
-                    Reset();
-
-                    _enterStartTime = Time.time;
-
-                    _interactable = interactable;
-                    _interactable.SetGazeInteractor(this);
-                    _interactable.GazeEnter(this, _hit.point);
-                    OnGazeToggle?.Invoke(true);
-                    OnGazeEnter?.Invoke();
-                }
-
-                // _interactable.GazeStay(this, _hit.point);
-                GazePoint = _hit.point;
-
-                if (_interactable.IsActivable && !_interactable.IsActivated)
-                {
-                    if (!(_interactable.getTimeToActivate() == 0f)) {_timeToActivate = _interactable.getTimeToActivate(); }
-
-                    var timeToActivate = (_enterStartTime + _timeToActivate) - Time.time;
-                    var progress = 1 - (timeToActivate / _timeToActivate);
-                    progress = Mathf.Clamp(progress, 0, 1);
-                    _reticle.SetProgress(progress);
-
-                    if (progress == 1)
+                    bool newObj = true;
+                    for (int i = 0; i < raycastHits.Count; i++)
                     {
-                        _reticle.Enable(false);
-                        _interactable.Activate();
-                        OnGazeActivated?.Invoke();
+                        if (raycastHits[i] == hit.transform.gameObject)
+                        {
+                            newObj = false;
+                            break;
+                        }
+                    }
+                    if (newObj)
+                    {
+                        raycastHits.Add(hit.transform.gameObject);
                     }
                 }
 
-                return;
-            }
-
-            _reticle.Enable(false);
-            Reset();
-        }
-
-        private void Reset()
-        {
-            _reticle.SetProgress(0);
-
-            if(_interactable == null) { return; }
-            _interactable.GazeExit(this);
-            _interactable.SetGazeInteractor(null);
-            _interactable = null;
-            OnGazeToggle?.Invoke(false);
-            OnGazeExit.Invoke();
-        }
-
-        private void LineRender(Ray ray)
-        {
-            RaycastHit hit;
-            if (Physics.Raycast(ray, out hit, _maxDetectionDistance) && hit.transform.root != transform.root)
-            {
-                lineRenderer.SetPositions(new Vector3[] { ray.origin + ray.direction * _minDetectionDistance - transform.up * _rayShiftDown, hit.point});
+                return (true, hit.transform.gameObject, hit.point);
             }
             else
             {
-                lineRenderer.SetPositions(new Vector3[] { ray.origin + ray.direction * _minDetectionDistance - transform.up * _rayShiftDown, ray.origin + ray.direction * _maxDetectionDistance});
+                return (false, null, Vector3.zero);
             }
         }
 
-        public Vector3 getGazePoint()
+        //Get function for the currently Gazed Game Object
+        public GameObject GetGazeInteractable()
         {
-          return GazePoint;
+            if (isColliding)
+            {
+                return currentGazeInteractable;
+            }
+            else
+            {
+                return null;
+            }
         }
 
-        public void InteractionEnabler(bool enable)
+        //Get function for the collision point
+        public Vector3? GetCollisionPoint()
         {
-            gameObject.SetActive(enable);
-            if (_reticle != null) {_reticle.Enable(enable);}
-            if (_reticle != null && enable == false) {Reset();}
+            if (isColliding)
+            {
+                return collisionPoint;
+            }
+            else
+            {
+                return null;
+            }
         }
 
-#if UNITY_EDITOR
-        private void OnDrawGizmosSelected()
+        //Check if currently colliding with any object
+        public bool IsColliding()
         {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawRay(transform.position, transform.forward * _maxDetectionDistance);
+            return isColliding;
         }
-#endif
+
+        //Used for logging without the clutter
+        private void Log(string message)
+        {
+            if (showRayAndHitList)
+            {
+                Debug.Log(message);
+            }
+        }
     }
 }
