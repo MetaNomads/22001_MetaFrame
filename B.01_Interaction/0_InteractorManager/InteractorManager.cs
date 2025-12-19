@@ -4,7 +4,7 @@ using UnityEngine;
 using Sirenix.OdinInspector;
 using Sirenix.Utilities;
 
-namespace MetaFrame.Interaction
+namespace MetaNomads.Interaction
 {      
     // a manager to enable interactors from code
     // any new interactor assigned to MetaFrame_Controller should be assigned in this manager
