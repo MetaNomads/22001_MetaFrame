@@ -6,8 +6,6 @@ using Oculus.Interaction;
 using Oculus.Interaction.Input;
 using Oculus.Interaction.PoseDetection;
 using MetaFrame.Interaction;
-using Unity.XR.CoreUtils;
-
 
 namespace MetaFrame.Data
 {
@@ -16,27 +14,64 @@ namespace MetaFrame.Data
         [SerializeField] private Hand _leftHand;
         [SerializeField] private TransformFeatureStateProvider _leftTransformFeatureStateProvider;
         [SerializeField] private FingerFeatureStateProvider _leftFingerFeatureStateProvider;
-        [SerializeField]
-        private float _leftPalmRotationCorrectionX = 0f;
-        [SerializeField] private float _leftPalmRotationCorrectionY = 0f;
-        [SerializeField] private float _leftPalmRotationCorrectionZ = 0f;
-
+        [SerializeField] private Vector3 _leftPalmRotationCorrection = new Vector3(180f, 90f, -90f);
 
         [SerializeField] private Hand _rightHand;
         [SerializeField] private TransformFeatureStateProvider _rightTransformFeatureStateProvider;
         [SerializeField] private FingerFeatureStateProvider _rightFingerFeatureStateProvider;
-        [SerializeField]
-        private float _rightPalmRotationCorrectionX = 0f;
-        [SerializeField] private float _rightPalmRotationCorrectionY = 0f;
-        [SerializeField] private float _rightPalmRotationCorrectionZ = 0f;
+        [SerializeField] private Vector3 _rightPalmRotationCorrection = new Vector3(180f, -90f, -90f);
 
         public override string SourceName => "Hand";
-        
+
+        // Virtual corrected transforms - created once, updated each frame
+        private Transform _leftPalmCorrected;
+        private Transform _rightPalmCorrected;
+
         protected override DataStructure CreateData()
         {
             return new DataStructure(this,
                 _leftTransformFeatureStateProvider, _leftFingerFeatureStateProvider,
                 _rightTransformFeatureStateProvider, _rightFingerFeatureStateProvider);
+        }
+
+        protected override void OnDataInitialized()
+        {
+            // Create virtual transform GameObjects to hold corrected palm data
+            var leftPalmObj = new GameObject("LeftPalm_Corrected");
+            leftPalmObj.transform.SetParent(transform);
+            _leftPalmCorrected = leftPalmObj.transform;
+
+            var rightPalmObj = new GameObject("RightPalm_Corrected");
+            rightPalmObj.transform.SetParent(transform);
+            _rightPalmCorrected = rightPalmObj.transform;
+        }
+
+        void LateUpdate()
+        {
+            // Update virtual transforms with corrected data each frame
+            ApplyPalmRotationCorrections();
+        }
+
+        private void ApplyPalmRotationCorrections()
+        {
+            if (dataManager?.Body?.Data == null) return;
+
+            var leftPalmSource = dataManager.Body.Data.LeftHandPalm;
+            var rightPalmSource = dataManager.Body.Data.RightHandPalm;
+
+            // Update left palm virtual transform
+            if (leftPalmSource != null && _leftPalmCorrected != null)
+            {
+                _leftPalmCorrected.position = leftPalmSource.position;
+                _leftPalmCorrected.rotation = leftPalmSource.rotation * Quaternion.Euler(_leftPalmRotationCorrection);
+            }
+
+            // Update right palm virtual transform
+            if (rightPalmSource != null && _rightPalmCorrected != null)
+            {
+                _rightPalmCorrected.position = rightPalmSource.position;
+                _rightPalmCorrected.rotation = rightPalmSource.rotation * Quaternion.Euler(_rightPalmRotationCorrection);
+            }
         }
 
         public override Dictionary<string, object> CollectData()
@@ -117,7 +152,7 @@ namespace MetaFrame.Data
             }
 
             // Left Hand Data
-            public Transform LeftPalm => GetPalm(true);
+            public Transform LeftPalm => _source._leftPalmCorrected;
             public float? LeftPalmTowardsFace => GetPalmTowardsFaceValue(true);
             public FingerData LeftThumb => GetFingerData(_leftFingerProvider, HandFinger.Thumb);
             public FingerData LeftIndex => GetFingerData(_leftFingerProvider, HandFinger.Index);
@@ -126,44 +161,13 @@ namespace MetaFrame.Data
             public FingerData LeftPinky => GetFingerData(_leftFingerProvider, HandFinger.Pinky);
 
             // Right Hand Data
-            public Transform RightPalm => GetPalm(false);
+            public Transform RightPalm => _source._rightPalmCorrected;
             public float? RightPalmTowardsFace => GetPalmTowardsFaceValue(false);
             public FingerData RightThumb => GetFingerData(_rightFingerProvider, HandFinger.Thumb);
             public FingerData RightIndex => GetFingerData(_rightFingerProvider, HandFinger.Index);
             public FingerData RightMiddle => GetFingerData(_rightFingerProvider, HandFinger.Middle);
             public FingerData RightRing => GetFingerData(_rightFingerProvider, HandFinger.Ring);
             public FingerData RightPinky => GetFingerData(_rightFingerProvider, HandFinger.Pinky);
-
-            // Helper method to get palm transform with null safety
-            private Transform GetPalm(bool isLeftHand)
-            {
-                try
-                {
-                    if (_source?.dataManager?.Body?.Data == null)
-                        return null;
-
-                    Transform palm;
-                    Quaternion correctionEuler;
-
-                    if (isLeftHand)
-                    {
-                        palm = _source.dataManager.Body.Data.LeftHandPalm;
-                        correctionEuler = Quaternion.Euler(_source._leftPalmRotationCorrectionX, _source._leftPalmRotationCorrectionY, _source._leftPalmRotationCorrectionZ);
-                    }
-                    else
-                    {
-                        palm = _source.dataManager.Body.Data.RightHandPalm;
-                        correctionEuler = Quaternion.Euler(_source._rightPalmRotationCorrectionX, _source._rightPalmRotationCorrectionY, _source._rightPalmRotationCorrectionZ);
-                    }
-
-                    palm.rotation = palm.rotation * correctionEuler;
-                    return palm;
-                }
-                catch
-                {
-                    return null;
-                }
-            }
 
             // Helper method to get palm towards face value with null safety
             private float? GetPalmTowardsFaceValue(bool isLeftHand)
@@ -177,6 +181,7 @@ namespace MetaFrame.Data
                 }
                 catch { return null; }
             }
+
             // Helper method to get finger data with null safety
             private FingerData GetFingerData(FingerFeatureStateProvider fingerProvider, HandFinger finger)
             {
@@ -212,8 +217,6 @@ namespace MetaFrame.Data
                     Curl == null && Flexion == null && Abduction == null && Opposition == null;
             }
         }
-
-
 
         /*=========================================================================================================================*/
         /// <summary>
