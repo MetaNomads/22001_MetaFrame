@@ -6,6 +6,7 @@ using Oculus.Interaction;
 using Oculus.Interaction.Input;
 using Oculus.Interaction.PoseDetection;
 using MetaFrame.Interaction;
+using Unity.XR.CoreUtils;
 
 
 namespace MetaFrame.Data
@@ -15,10 +16,19 @@ namespace MetaFrame.Data
         [SerializeField] private Hand _leftHand;
         [SerializeField] private TransformFeatureStateProvider _leftTransformFeatureStateProvider;
         [SerializeField] private FingerFeatureStateProvider _leftFingerFeatureStateProvider;
+        [SerializeField]
+        private float _leftPalmRotationCorrectionX = 0f;
+        [SerializeField] private float _leftPalmRotationCorrectionY = 0f;
+        [SerializeField] private float _leftPalmRotationCorrectionZ = 0f;
+
 
         [SerializeField] private Hand _rightHand;
         [SerializeField] private TransformFeatureStateProvider _rightTransformFeatureStateProvider;
         [SerializeField] private FingerFeatureStateProvider _rightFingerFeatureStateProvider;
+        [SerializeField]
+        private float _rightPalmRotationCorrectionX = 0f;
+        [SerializeField] private float _rightPalmRotationCorrectionY = 0f;
+        [SerializeField] private float _rightPalmRotationCorrectionZ = 0f;
 
         public override string SourceName => "Hand";
         
@@ -129,13 +139,32 @@ namespace MetaFrame.Data
             {
                 try
                 {
+                    if (_source?.dataManager?.Body?.Data == null)
+                        return null;
+
+                    Transform palm;
+                    Quaternion correctionEuler;
+
                     if (isLeftHand)
-                        return _source.dataManager.Body.Data.LeftHandPalm;
+                    {
+                        palm = _source.dataManager.Body.Data.LeftHandPalm;
+                        correctionEuler = Quaternion.Euler(_source._leftPalmRotationCorrectionX, _source._leftPalmRotationCorrectionY, _source._leftPalmRotationCorrectionZ);
+                    }
                     else
-                        return _source.dataManager.Body.Data.RightHandPalm;
+                    {
+                        palm = _source.dataManager.Body.Data.RightHandPalm;
+                        correctionEuler = Quaternion.Euler(_source._rightPalmRotationCorrectionX, _source._rightPalmRotationCorrectionY, _source._rightPalmRotationCorrectionZ);
+                    }
+
+                    palm.rotation = palm.rotation * correctionEuler;
+                    return palm;
                 }
-                catch { return null; }
+                catch
+                {
+                    return null;
+                }
             }
+
             // Helper method to get palm towards face value with null safety
             private float? GetPalmTowardsFaceValue(bool isLeftHand)
             {

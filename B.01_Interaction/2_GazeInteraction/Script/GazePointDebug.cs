@@ -1,33 +1,26 @@
 using UnityEngine;
-using MetaFrame.Interaction;
+using MetaFrame.Interaction.GazeInteraction;
 
 namespace MetaFrame.Testing
 {
     /// <summary>
     /// Test script to visualize gaze hit points by moving a GameObject to the collision point
     /// Useful for debugging and verifying gaze raycast functionality
+    /// Now works directly with GazeInteractor for simplified dependency management
     /// </summary>
     public class GazeHitPointVisualizer : MonoBehaviour
     {
         [Header("Gaze Source")]
-        [SerializeField] private GazePose _gazePose;
-        
-        [Header("Gaze Type to Visualize")]
-        [SerializeField] private GazeType _gazeType = GazeType.CenterGaze;
-        
+        [SerializeField] private GazeInteractor _gazeInteractor;
+
         [Header("Visualization Settings")]
         [SerializeField] private GameObject _visualizerObject;
         [SerializeField] private bool _hideWhenNoHit = true;
         [SerializeField] private float _smoothing = 0.1f;
-        
-        private GazePose.GazePoseData _selectedGazePose;
 
-        public enum GazeType
-        {
-            CenterGaze,
-            HeadGaze,
-            ChestGaze
-        }
+        [Header("Debug Gizmos")]
+        [SerializeField] private bool _drawDebugGizmos = true;
+        [SerializeField] private float _gizmoSphereRadius = 0.05f;
 
         void Start()
         {
@@ -38,35 +31,20 @@ namespace MetaFrame.Testing
                 return;
             }
 
-            if (_gazePose == null)
+            if (_gazeInteractor == null)
             {
-                Debug.LogWarning("[GazeHitPointVisualizer] No GazePose assigned!");
+                Debug.LogWarning("[GazeHitPointVisualizer] No GazeInteractor assigned!");
                 enabled = false;
                 return;
-            }
-
-            // Select the appropriate gaze pose
-            _selectedGazePose = _gazeType switch
-            {
-                GazeType.CenterGaze => _gazePose.CenterGaze,
-                GazeType.HeadGaze => _gazePose.HeadGaze,
-                GazeType.ChestGaze => _gazePose.ChestGaze,
-                _ => null
-            };
-
-            if (_selectedGazePose == null)
-            {
-                Debug.LogWarning($"[GazeHitPointVisualizer] Failed to get {_gazeType}!");
-                enabled = false;
             }
         }
 
         void Update()
         {
-            if (_selectedGazePose == null || _visualizerObject == null) return;
+            if (_gazeInteractor == null || _visualizerObject == null) return;
 
-            // Get the gaze hit point
-            Vector3? hitPoint = _selectedGazePose.GetGazePoint();
+            // Get the gaze hit point directly from the interactor
+            Vector3? hitPoint = _gazeInteractor.GetCollisionPoint();
 
             if (hitPoint.HasValue)
             {
@@ -102,26 +80,43 @@ namespace MetaFrame.Testing
 
         void OnDrawGizmos()
         {
-            if (!Application.isPlaying || _selectedGazePose == null) return;
+            if (!Application.isPlaying || _gazeInteractor == null || !_drawDebugGizmos) return;
 
-            // Draw debug ray from gaze origin to hit point
-            var transform = _selectedGazePose.GetTransform();
-            if (transform == null) return;
+            // Get the interactor's transform (raycast origin)
+            Transform interactorTransform = _gazeInteractor.transform;
 
-            Vector3? hitPoint = _selectedGazePose.GetGazePoint();
-            
+            // Get the collision point
+            Vector3? hitPoint = _gazeInteractor.GetCollisionPoint();
+
             if (hitPoint.HasValue)
             {
+                // Draw green line from raycast origin to hit point
                 Gizmos.color = Color.green;
-                Gizmos.DrawLine(transform.position, hitPoint.Value);
-                Gizmos.DrawWireSphere(hitPoint.Value, 0.05f);
+                Gizmos.DrawLine(interactorTransform.position, hitPoint.Value);
+                Gizmos.DrawWireSphere(hitPoint.Value, _gizmoSphereRadius);
             }
             else
             {
-                // Draw forward ray when no hit
+                // Draw red ray when no hit (showing raycast direction)
                 Gizmos.color = Color.red;
-                Gizmos.DrawRay(transform.position, transform.forward * 10f);
+                Gizmos.DrawRay(interactorTransform.position, interactorTransform.forward * 10f);
             }
+        }
+
+        /// <summary>
+        /// Get the currently gazed GameObject (if any)
+        /// </summary>
+        public GameObject GetGazedObject()
+        {
+            return _gazeInteractor?.GetGazeInteractable();
+        }
+
+        /// <summary>
+        /// Check if the gaze is currently hitting anything
+        /// </summary>
+        public bool IsGazeHitting()
+        {
+            return _gazeInteractor != null && _gazeInteractor.IsColliding();
         }
     }
 }

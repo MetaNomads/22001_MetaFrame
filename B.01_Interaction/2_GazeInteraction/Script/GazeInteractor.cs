@@ -40,10 +40,10 @@ namespace MetaFrame.Interaction.GazeInteraction
         void FixedUpdate()
         {
             //Shoot the raycast from this GameObject's transform
-            (bool, GameObject, Vector3) raycastData = ShootRaycast();
-            isColliding = raycastData.Item1;
-            currentGazeInteractable = raycastData.Item2;
-            collisionPoint = raycastData.Item3;
+            var raycastData = ShootRaycast();
+            isColliding = raycastData.hit;
+            currentGazeInteractable = raycastData.obj;
+            collisionPoint = raycastData.point;
 
             //Draw raycast line for testing
             if (showRayAndHitList)
@@ -52,38 +52,14 @@ namespace MetaFrame.Interaction.GazeInteraction
             }
         }
 
-        private (bool, GameObject, Vector3) ShootRaycast()
+        private (bool hit, GameObject obj, Vector3? point) ShootRaycast()
         {
-            //Shoot Raycast from this GameObject's transform
-            RaycastHit hit;
-            if (Physics.Raycast(transform.position, transform.forward, out hit, Mathf.Infinity, ~layerMask))
+            if (Physics.Raycast(transform.position, transform.forward, out RaycastHit hitInfo, Mathf.Infinity, ~layerMask))
             {
-                //For logging. It's inefficient so make sure to uncheck "Verbose Logging" in the inspector when not testing the script.
-                Log("Raycast has hit an object named: " + hit.transform.gameObject.name);
-                
-                if (showRayAndHitList)
-                {
-                    bool newObj = true;
-                    for (int i = 0; i < raycastHits.Count; i++)
-                    {
-                        if (raycastHits[i] == hit.transform.gameObject)
-                        {
-                            newObj = false;
-                            break;
-                        }
-                    }
-                    if (newObj)
-                    {
-                        raycastHits.Add(hit.transform.gameObject);
-                    }
-                }
+                return (true, hitInfo.transform.gameObject, hitInfo.point);
+            }
 
-                return (true, hit.transform.gameObject, hit.point);
-            }
-            else
-            {
-                return (false, null, Vector3.zero);
-            }
+            return (false, null, null);
         }
 
         //Get function for the currently Gazed Game Object
