@@ -38,11 +38,9 @@ namespace MetaFrame.Data
         {
             // Create virtual transform GameObjects to hold corrected palm data
             var leftPalmObj = new GameObject("LeftPalm_Corrected");
-            leftPalmObj.transform.SetParent(transform);
             _leftPalmCorrected = leftPalmObj.transform;
 
             var rightPalmObj = new GameObject("RightPalm_Corrected");
-            rightPalmObj.transform.SetParent(transform);
             _rightPalmCorrected = rightPalmObj.transform;
         }
 
@@ -193,7 +191,7 @@ namespace MetaFrame.Data
                     var opposition = fingerProvider.GetFeatureValue(finger, FingerFeature.Opposition);
 
                     var data = new FingerData(curl, flexion, abduction, opposition);
-                    return data.IsAllNull ? null : data;
+                    return data;
                 }
                 catch { return null; }
             }
@@ -212,9 +210,6 @@ namespace MetaFrame.Data
                     Abduction = abduction;
                     Opposition = opposition;
                 }
-
-                public bool IsAllNull =>
-                    Curl == null && Flexion == null && Abduction == null && Opposition == null;
             }
         }
 

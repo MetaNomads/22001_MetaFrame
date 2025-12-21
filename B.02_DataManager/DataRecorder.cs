@@ -24,9 +24,9 @@ namespace MetaFrame.Data
 
         [BoxGroup("Recording Configuration")]
         [SerializeField]
-        [Range(1, 20)]
-        [Tooltip("Recording interval in milliseconds")]
-        private int _recordingIntervalMilliseconds = 10;
+        [Range(1, 100)]
+        [Tooltip("Sampling rate per second")]
+        private int _samplingRate = 20;
 
         [BoxGroup("Recording Configuration")]
         [SerializeField]
@@ -74,7 +74,7 @@ namespace MetaFrame.Data
 
         void Awake()
         {
-            _recordingInterval = _recordingIntervalMilliseconds / 1000f;
+            _recordingInterval = 1f/_samplingRate;
             
             // Configure JSON settings once
             _jsonSettings = new JsonSerializerSettings
@@ -261,29 +261,31 @@ namespace MetaFrame.Data
             {
                 try
                 {
-                    // Debug.Log("The source being tested is: " +  dataSource.SourceName);
                     var sourceData = dataSource.CollectData();
-                    // Debug.Log("The source: " + dataSource.SourceName + " has " + sourceData.Count + " options");
+                    var orderedData = new Dictionary<string, object>();
+                    orderedData["timestamp"] = timestamp;
+                    
                     if (sourceData.Count > 0)
                     {
-                        // Create new dictionary with timestamp first
-                        var orderedData = new Dictionary<string, object>();
-                        orderedData["timestamp"] = timestamp;
-                        
-                        // Apply precision and add remaining data
+                        // Has valid data - apply precision and add
                         ApplyPrecisionToData(sourceData);
                         foreach (var kvp in sourceData)
                         {
                             orderedData[kvp.Key] = kvp.Value;
                         }
-                        
-                        results[dataSource.SourceName.ToLower()] = orderedData;
                     }
+                    // If sourceData is empty, orderedData will only contain timestamp
+                    
+                    results[dataSource.SourceName.ToLower()] = orderedData;
                 }
                 catch (Exception e)
                 {
                     Debug.LogWarning($"[DataRecorder] Failed to collect {dataSource.SourceName} data: {e.Message}");
-                    // Continue with other data sources
+                    // Record timestamp-only for exception cases
+                    results[dataSource.SourceName.ToLower()] = new Dictionary<string, object> 
+                    { 
+                        ["timestamp"] = timestamp 
+                    };
                 }
             }
 
@@ -371,6 +373,10 @@ namespace MetaFrame.Data
             if (_dataManager == null) return;
 
             var allData = CollectAllData();
+
+            // Skip entire frame if all sources have no data (only timestamps)
+            bool hasAnyData = allData.Values.Any(sourceData => sourceData.Count > 1);
+            if (!hasAnyData) return;
 
             // Batch each data source separately
             foreach (var sourceData in allData)
