@@ -1,0 +1,10 @@
+﻿fileFormatVersion: 2
+guid: b53129372e47410e8c04347a1b3ebfe2
+timeCreated: 1599415416
+AssetOrigin:
+  serializedVersion: 1
+  productId: 173425
+  packageName: 'Piglet: glTF Importer'
+  packageVersion: 1.3.9
+  assetPath: Assets/Piglet/Scripts/Extensions/AnimationCurveExtensions.cs
+  uploadId: 664523
