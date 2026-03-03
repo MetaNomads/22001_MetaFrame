@@ -22,11 +22,11 @@ namespace MetaNomads.Data
         [Tooltip("Enable eye tracking initialization")]
         [SerializeField] private bool _enableEyeTracking = true;
 
-        [BoxGroup("Face Tracking 2.0 Data Sources")]
+        [BoxGroup("Face Tracking v2 Data Sources")]
         [Tooltip("Enable visual (camera-based) face tracking")]
         [SerializeField] private bool _useVisualFaceTracking = true;
 
-        [BoxGroup("Face Tracking 2.0 Data Sources")]
+        [BoxGroup("Face Tracking v2 Data Sources")]
         [Tooltip("Enable audio-based lip sync")]
         [SerializeField] private bool _useAudioFaceTracking = false;
 

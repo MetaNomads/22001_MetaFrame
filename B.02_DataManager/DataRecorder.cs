@@ -50,7 +50,7 @@ namespace MetaFrame.Data
         public bool startRecord { get; private set; }
         private bool _isPaused = false;
         private string startTime;
-        private string sessionPath;
+        public string sessionPath;
         private float _recordingInterval;
 
         // Optimized data structures
