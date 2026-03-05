@@ -18,15 +18,17 @@ public class SurveyControl : MonoBehaviour
 
         if (toggle_y.isOn == true)
         {
+            print("Yes");
             surveyDataRecorder.surveyD.detection = "Yes";
             surveyDataRecorder.StartSurvey();
             survey.SetActive(true);
         }
-        else 
+        else
         {
+            print("No");
             surveyDataRecorder.surveyD.detection = "No";
             surveyDataRecorder.StartSurvey();
-            survey.SetActive(false); 
+            survey.SetActive(false);
         }
     }
     public void ResetAllGroups()
@@ -38,7 +40,7 @@ public class SurveyControl : MonoBehaviour
                 if (toggle.isOn)
                 {
                     toggle.isOn = false;
-                    
+
                 }
             }
         }
@@ -47,5 +49,5 @@ public class SurveyControl : MonoBehaviour
     {
         print("survey clear");
         ResetAllGroups();
-    }   
+    }
 }
