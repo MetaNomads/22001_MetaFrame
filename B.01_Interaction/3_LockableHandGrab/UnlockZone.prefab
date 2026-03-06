@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 1769216195757819349}
   - component: {fileID: 5364627743123064747}
   m_Layer: 0
-  m_Name: ReleaseZone
+  m_Name: UnlockZone
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -52,8 +52,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 0.28235936, y: 0.7787442, z: 0.47048402}
+  m_Center: {x: 0.24801153, y: 0.6736579, z: 0.48988742}
 --- !u!114 &5364627743123064747
 MonoBehaviour:
   m_ObjectHideFlags: 0
