@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine.UI;
+using static GameStateManager;
 
 namespace MetaFrame.Data
 {
@@ -25,7 +26,7 @@ namespace MetaFrame.Data
             public string session_T;
             public string sequence_T;
             public string triallNo;
-            public string anomally_T;
+            public string anomaly_T;
             public string initial_T;
             public string at_Source_T;
             public string in_Hand_T;
@@ -57,7 +58,7 @@ namespace MetaFrame.Data
                 SessionType = state.session_T;
                 SequenceType = state.sequence_T;
                 TrialNo = state.triallNo;
-                AnomalyType = state.anomally_T;
+                AnomalyType = state.anomaly_T;
                 Detection = survey.detection;
                 Confidence = survey.confidence;
                 Plausibility = survey.pausibility;
@@ -89,29 +90,22 @@ namespace MetaFrame.Data
             }
         }
 
-        //public void SubmitSurvey()
-        //{
-        //    StoreToggleValues();
-        //    surveyCompletion();
-        //    Debug.Log("Survey Data: " + stateD.triallNo + " " + surveyD.detection + " " + surveyD.confidence + " " + surveyD.explanation + " " + stateD.triall_S + " " + surveyD.report_S + " " + stateD.triall_E + " " + stateD.placed);
-        //    if (survey_C == true && surveyD.detection == "Yes")
-        //    {
-        //        firstTimeActivation = true;
-        //        TestGameStateManager.instance.UpdateDataThenBeginNextTrial(stateD);
-        //        //SaveTrial(); => Call moved to GameStateManager
-
-        //    }
-        //    else if (surveyD.detection == "No")
-        //    {
-        //        noSelection();
-        //        TestGameStateManager.instance.UpdateDataThenBeginNextTrial(stateD);
-        //        //SaveTrial(); => Call moved to GameStateManager
-        //    }
-        //    else
-        //    {
-        //        Debug.Log("survey incomplete");
-        //    }
-        //}
+        public void SubmitSurvey()
+        {
+            StoreToggleValues();
+            stateDataUpdate();
+            surveyCompletion();
+            //Debug.Log("Survey Data: " + stateD.triallNo + " " + surveyD.detection + " " + surveyD.confidence + " " + surveyD.explanation + " " + stateD.triall_S + " " + surveyD.report_S + " " + stateD.triall_E + " " + stateD.placed);
+            if (survey_C == true)
+            {
+                firstTimeActivation = true;
+                SaveTrial(stateD);
+            }
+            else
+            {
+                Debug.Log("survey incomplete");
+            }
+        }
 
         public bool surveyCompletion()
         {
@@ -121,13 +115,13 @@ namespace MetaFrame.Data
 
         public bool IsSurveyDataComplete(SurveyData survey)
         {
-            if(surveyD.detection == "Yes")
+            if(survey.detection == "Yes")
             {
                 return !string.IsNullOrEmpty(survey.confidence)
                 && !string.IsNullOrEmpty(survey.pausibility)
                 && !string.IsNullOrEmpty(survey.report_S);
             }
-            else if (surveyD.detection == "No")
+            else if (survey.detection == "No")
             {
                 return !string.IsNullOrEmpty(survey.confidence)
                 && !string.IsNullOrEmpty(survey.report_S);
@@ -143,7 +137,7 @@ namespace MetaFrame.Data
             TrialJson trialJson = new TrialJson(surveyD, updatedStateData);
             string json = JsonUtility.ToJson(trialJson, false);
             string filePath = Path.Combine(dataRecorder.sessionPath, "Survey.json");
-            File.WriteAllText(filePath, json);
+            File.AppendAllText(filePath, json + "\n");
 
             //Reset
             clearSelection();
@@ -185,18 +179,23 @@ namespace MetaFrame.Data
             Debug.Log($"Confidence: {surveyD.confidence}, Explanation: {surveyD.pausibility}");
         }
 
-
-        public void CreateClone(GameObject go)
+        public void stateDataUpdate()
         {
-            GameObject clone = GameObject.Instantiate(go, new Vector3(0, 0, 0), new Quaternion(0, 0, 0, 0));
-        }
-
-        public void OnTriggerEnter(Collider other)
-        {
-            if (other.tag == "Cup")
+            stateD.session_T = GameStateManager.instance.GetCurrentSessionData().ToString();
+            stateD.triallNo = GameStateManager.instance.GetTrialNumber().ToString();
+            var gsm = GameStateManager.instance;
+            GameStateManager.TrialData? trialData = gsm.GetCurrentTrialData();
+            if (trialData.HasValue)
             {
-                //Stuff
+                TrialData trial = trialData.Value;
+                stateD.anomaly_T = trial.state.ToString();
+                stateD.initial_T = trial.trialStartTime.ToString();
+                //stateD.in_Hand_T = trial.objectInHand.ToString();
+                //stateD.at_Target_T = trial.objectAtTarget.ToString();
+                stateD.report_E = trial.trialEndTime.ToString();
+                //stateD.at_Source_T = trial.objectAtSource.ToString();
             }
+
         }
     }
 
