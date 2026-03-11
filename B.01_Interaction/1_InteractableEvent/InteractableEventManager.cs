@@ -21,7 +21,7 @@ namespace MetaNomads.Interaction
     }
 
     // A manager to trigger named interactable events from code or inspector
-    public class InteractableManager : MonoBehaviour
+    public class InteractableEventManager : MonoBehaviour
     {
         public string Interactable;
 
@@ -97,21 +97,6 @@ namespace MetaNomads.Interaction
             TriggerExit(activeEventIndex);
         }
 
-        /// <summary>Add a new event at runtime.</summary>
-        public void AddEvent(InteractableEvent newEvent)
-        {
-            if (newEvent == null) return;
-            events.Add(newEvent);
-        }
-
-        /// <summary>Remove an event by name at runtime.</summary>
-        public bool RemoveEvent(string eventName)
-        {
-            int removed = events.RemoveAll(e =>
-                string.Equals(e.eventName, eventName, StringComparison.OrdinalIgnoreCase));
-            return removed > 0;
-        }
-
         /// <summary>Returns all registered event names.</summary>
         public List<string> GetEventNames()
         {
@@ -153,75 +138,133 @@ namespace MetaNomads.Interaction
     }
 
 #if UNITY_EDITOR
-    [CustomEditor(typeof(InteractableManager))]
-    public class InteractableManagerEditor : Editor
+    [CustomEditor(typeof(InteractableEventManager))]
+    public class InteractableStateManagerEditor : Editor
     {
+        private SerializedProperty interactableProp;
+        private SerializedProperty eventsProp;
+
+        private readonly List<bool> foldouts = new();
+
+        private void OnEnable()
+        {
+            interactableProp = serializedObject.FindProperty("Interactable");
+            eventsProp = serializedObject.FindProperty("events");
+        }
+
         public override void OnInspectorGUI()
         {
-            DrawDefaultInspector();
+            serializedObject.Update();
 
-            var manager = (InteractableManager)target;
-            var names   = manager.GetEventNames();
+            EditorGUILayout.PropertyField(interactableProp);
 
-            if (names.Count == 0) return;
+            DrawEventBlocks();
 
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Trigger Events", EditorStyles.boldLabel);
+            serializedObject.ApplyModifiedProperties();
+        }
 
-            string active = manager.GetActiveEventName();
+        private void DrawEventBlocks()
+        {
+            while (foldouts.Count < eventsProp.arraySize)
+                foldouts.Add(true);
 
-            // Rebuild event list via serialized object to read persistent flag
-            var so = new SerializedObject(manager);
-            var eventsProp = so.FindProperty("events");
-
-            for (int i = 0; i < names.Count; i++)
+            for (int i = 0; i < eventsProp.arraySize; i++)
             {
-                var name = names[i];
-                bool isActive = name == active;
-                bool isPersistent = eventsProp.GetArrayElementAtIndex(i).FindPropertyRelative("persistent").boolValue;
+                var eventProp = eventsProp.GetArrayElementAtIndex(i);
+
+                var nameProp = eventProp.FindPropertyRelative("eventName");
+                var persistentProp = eventProp.FindPropertyRelative("persistent");
+                var onEnterProp = eventProp.FindPropertyRelative("onEnter");
+                var onExitProp = eventProp.FindPropertyRelative("onExit");
+
+                string header = string.IsNullOrWhiteSpace(nameProp.stringValue)
+                    ? "New Event"
+                    : nameProp.stringValue;
+
+                if (persistentProp.boolValue)
+                    header += " [P]";
+
+                EditorGUILayout.BeginVertical(GUI.skin.box);
 
                 EditorGUILayout.BeginHorizontal();
 
-                GUIStyle labelStyle = new GUIStyle(EditorStyles.label);
-                labelStyle.fontStyle = isActive ? FontStyle.Bold : FontStyle.Normal;
+                foldouts[i] = EditorGUILayout.Foldout(
+                    foldouts[i],
+                    header,
+                    true,
+                    EditorStyles.foldoutHeader
+                );
 
-                string label = isActive ? $"● {name}" : $"○ {name}";
-                if (isPersistent) label += " [P]";
-                EditorGUILayout.LabelField(label, labelStyle, GUILayout.Width(180));
-
-                if (GUILayout.Button($"Trigger Enter {name}"))
-                    manager.TriggerEnter(name);
-
-                // Only show Exit button if not persistent (persistent events are excluded from auto-exit)
-                GUI.enabled = !isPersistent || isActive;
-                if (GUILayout.Button($"Trigger Exit {name}"))
-                    manager.TriggerExit(name);
-                GUI.enabled = true;
+                GUI.color = new Color(1f, 0.4f, 0.4f);
+                if (GUILayout.Button("✕", GUILayout.Width(24)))
+                {
+                    eventsProp.DeleteArrayElementAtIndex(i);
+                    foldouts.RemoveAt(i);
+                    serializedObject.ApplyModifiedProperties();
+                    GUIUtility.ExitGUI();
+                    return;
+                }
+                GUI.color = Color.white;
 
                 EditorGUILayout.EndHorizontal();
+
+                if (foldouts[i])
+                {
+                    EditorGUI.indentLevel++;
+
+                    EditorGUILayout.PropertyField(nameProp, new GUIContent("Event Name"));
+                    EditorGUILayout.PropertyField(persistentProp);
+
+                    EditorGUILayout.Space(4);
+
+                    EditorGUILayout.PropertyField(onEnterProp);
+                    EditorGUILayout.PropertyField(onExitProp);
+
+                    // Debug buttons in play mode
+                    GUI.enabled = Application.isPlaying;
+
+                    EditorGUILayout.BeginHorizontal();
+
+                    GUI.color = new Color(0.4f, 0.9f, 0.5f);
+                    if (GUILayout.Button("▶ Enter"))
+                    {
+                        serializedObject.ApplyModifiedProperties();
+                        ((InteractableEventManager)target).TriggerEnter(i);
+                    }
+
+                    GUI.color = new Color(1f, 0.7f, 0.4f);
+                    if (GUILayout.Button("◀ Exit"))
+                    {
+                        serializedObject.ApplyModifiedProperties();
+                        ((InteractableEventManager)target).TriggerExit(i);
+                    }
+
+                    GUI.color = Color.white;
+
+                    EditorGUILayout.EndHorizontal();
+
+                    GUI.enabled = true;
+
+                    EditorGUI.indentLevel--;
+                }
+
+                EditorGUILayout.EndVertical();
+                EditorGUILayout.Space(3);
             }
 
-            if (active != null)
+            EditorGUILayout.Space();
+
+            GUI.color = new Color(0.4f, 0.9f, 0.5f);
+
+            if (GUILayout.Button("+ Add Event"))
             {
-                EditorGUILayout.Space();
-
-                bool activePersistent = eventsProp
-                    .GetArrayElementAtIndex(manager.GetEventNames().IndexOf(active))
-                    .FindPropertyRelative("persistent").boolValue;
-
-                if (activePersistent)
-                {
-                    EditorGUILayout.HelpBox($"{active} is persistent — it won't auto-exit. Use Force Exit to override.", MessageType.Info);
-                    if (GUILayout.Button($"Force Exit Current ({active})"))
-                        manager.ForceExitCurrent();
-                }
-                else
-                {
-                    if (GUILayout.Button($"Exit Current ({active})"))
-                        manager.TriggerExitCurrent();
-                }
+                eventsProp.InsertArrayElementAtIndex(eventsProp.arraySize);
+                foldouts.Add(true);
             }
+
+            GUI.color = Color.white;
         }
     }
+
 #endif
 }
