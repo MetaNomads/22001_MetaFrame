@@ -1,11 +1,11 @@
 namespace MetaFrame.State
 {
     /// <summary>
-    /// Implement this on any MonoBehaviour to use it as a custom trigger.
-    /// Drag the component into a binding's Custom Trigger list.
+    /// Implement this on any MonoBehaviour to use it as a custom condition.
+    /// Drag the component into a trigger's Conditions list.
     ///
     /// Example:
-    ///   public class PlayerNearMirrorTrigger : MonoBehaviour, IAnomalyTrigger
+    ///   public class PlayerNearMirrorCondition : MonoBehaviour, IAnomalyCondition
     ///   {
     ///       public Transform player;
     ///       public float radius = 2f;
@@ -14,7 +14,7 @@ namespace MetaFrame.State
     ///           Vector3.Distance(transform.position, player.position) <= radius;
     ///   }
     /// </summary>
-    public interface IAnomalyTrigger
+    public interface IAnomalyCondition
     {
         bool Evaluate();
     }

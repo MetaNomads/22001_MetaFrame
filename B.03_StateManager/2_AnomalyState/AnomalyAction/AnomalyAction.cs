@@ -37,7 +37,7 @@ namespace MetaFrame.State
     //        IEnumerator Spin() { while (Manager.CurrentAnomalyState == AnomalyState.Triggered) { t.Rotate(Vector3.up, speed * Time.deltaTime); yield return null; } CompleteAnomalyAction(); }
     //    }
 
-    public abstract class AnomalyAction : UnityEngine.MonoBehaviour
+    public abstract class AnomalyAction : MonoBehaviour
     {
         private AnomalyStateManager _manager;
         protected AnomalyStateManager Manager => _manager;
@@ -49,31 +49,27 @@ namespace MetaFrame.State
             _manager = GetComponent<AnomalyStateManager>();
 
             if (_manager == null)
-                UnityEngine.Debug.LogError(
+                Debug.LogError(
                     $"[AnomalyAction] No AnomalyStateManager found on '{gameObject.name}'. " +
                     "Add one to the same GameObject.", this);
         }
 
-        // ── Entry point — wire this to the binding's Actions UnityEvent ───────────
+        // ── Entry point — wire this to a binding's onEnter UnityEvent ─────────────
 
         public void RunAnomalyAction()
         {
             if (_manager == null)
             {
-                UnityEngine.Debug.LogError(
+                Debug.LogError(
                     $"[AnomalyAction] Cannot run '{GetType().Name}' — no AnomalyStateManager.", this);
                 return;
             }
 
-            _manager.RegisterActiveAction(this);
-
+            // Only async actions need tracking; one-shots fire and forget.
             if (IsAsync)
-                _manager.RegisterPendingAction();
+                _manager.RegisterAction(this);
 
             Execute();
-
-            if (!IsAsync)
-                _manager.UnregisterActiveAction(this);
         }
 
         // ── Overrideable API ──────────────────────────────────────
@@ -89,10 +85,12 @@ namespace MetaFrame.State
         protected virtual bool IsAsync => false;
 
         /// <summary>
-        /// Called automatically if the anomaly is cancelled mid-run.
+        /// Called by the manager if the anomaly is cancelled mid-run.
         /// Override to stop coroutines, reset visuals, etc.
+        /// Always call base.CancelAnomalyAction() or CompleteAnomalyAction() at the end
+        /// so the manager's pending count stays correct.
         /// </summary>
-        public virtual void CancelAnomalyAction() { }
+        public virtual void CancelAnomalyAction() => CompleteAnomalyAction();
 
         // ── Helpers for subclasses ────────────────────────────────
 
@@ -103,8 +101,7 @@ namespace MetaFrame.State
         protected void CompleteAnomalyAction()
         {
             if (!IsAsync) return;
-            _manager?.UnregisterActiveAction(this);
-            _manager?.SignalActionComplete();
+            _manager?.CompleteAnomaly(this);
         }
     }
 }

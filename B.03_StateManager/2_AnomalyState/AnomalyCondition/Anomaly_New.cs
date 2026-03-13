@@ -1,7 +1,7 @@
 using UnityEngine;
 using MetaFrame.State;
 
-public class PlayerFacingMirrorCondition : MonoBehaviour, IAnomalyTrigger
+public class PlayerFacingMirrorCondition : MonoBehaviour, IAnomalyCondition
 {
     public Transform player;
     public float angleThreshold = 25f;

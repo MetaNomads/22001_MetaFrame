@@ -1,202 +1,311 @@
-using UnityEngine;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using UnityEngine.UI;
-using static GameStateManager;
+using UnityEngine;
+using MetaFrame.State;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace MetaFrame.Data
 {
-    public class SurveyDataRecorder : MonoBehaviour
+    // ── JSON Data Models ──────────────────────────────────────────────────────────
+
+    public class TransitionEvent
     {
-        public DataRecorder dataRecorder;
-        public bool survey_C = false;
-        public bool firstTimeActivation = true;
-        public SurveyControl questionUI; 
-        public class SurveyData
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string source;     // GameObject name — populated for anomaly transitions
+        public string from;
+        public string to;
+        public string timestamp;
+
+        public TransitionEvent(string from, string to, DateTime time, string source = null)
         {
-            public string detection;
-            public string confidence;
-            public string pausibility;
-            public string report_S; 
-        }
-        public class StateData
-        {
-            public string session_T;
-            public string sequence_T;
-            public string triallNo;
-            public string anomaly_T;
-            public string initial_T;
-            public string at_Source_T;
-            public string in_Hand_T;
-            public string at_Target_T;
-            public string report_E;
-            public string anomaly_S;
-            public string anomaly_E;
-        }
-
-        public class TrialJson
-        {
-            public string SessionType;
-            public string SequenceType;
-            public string TrialNo;
-            public string AnomalyType;
-            public string Detection;
-            public string Confidence;
-            public string Plausibility;
-            public string Initialization;
-            public string AtSource;
-            public string InHand;
-            public string AtTarget;
-            public string ReportStart;
-            public string ReportEnd;
-            public string AnomalyStart;
-            public string AnomalyEnd;
-            public TrialJson(SurveyData survey, StateData state)
-            {
-                SessionType = state.session_T;
-                SequenceType = state.sequence_T;
-                TrialNo = state.triallNo;
-                AnomalyType = state.anomaly_T;
-                Detection = survey.detection;
-                Confidence = survey.confidence;
-                Plausibility = survey.pausibility;
-                Initialization = state.initial_T;
-                AtSource = state.at_Source_T;
-                InHand = state.in_Hand_T;
-                AtTarget = state.at_Target_T;
-                ReportStart = survey.report_S;
-                ReportEnd = state.report_E;
-                AnomalyStart = state.anomaly_S;
-                AnomalyEnd = state.anomaly_E;
-            }
-        }
-
-        public SurveyData surveyD;
-        public StateData stateD;
-
-        void Awake()
-        {
-            surveyD = new SurveyData();
-            stateD = new StateData();
-        }
-        public void StartSurvey()
-        {
-            if (firstTimeActivation == true)
-            {
-                surveyD.report_S = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-                firstTimeActivation = false;
-            }
-        }
-
-        public void SubmitSurvey()
-        {
-            StoreToggleValues();
-            stateDataUpdate();
-            surveyCompletion();
-            //Debug.Log("Survey Data: " + stateD.triallNo + " " + surveyD.detection + " " + surveyD.confidence + " " + surveyD.explanation + " " + stateD.triall_S + " " + surveyD.report_S + " " + stateD.triall_E + " " + stateD.placed);
-            if (survey_C == true)
-            {
-                firstTimeActivation = true;
-                SaveTrial(stateD);
-            }
-            else
-            {
-                Debug.Log("survey incomplete");
-            }
-        }
-
-        public bool surveyCompletion()
-        {
-            survey_C = IsSurveyDataComplete(surveyD);
-            return survey_C;
-        }
-
-        public bool IsSurveyDataComplete(SurveyData survey)
-        {
-            if(survey.detection == "Yes")
-            {
-                return !string.IsNullOrEmpty(survey.confidence)
-                && !string.IsNullOrEmpty(survey.pausibility)
-                && !string.IsNullOrEmpty(survey.report_S);
-            }
-            else if (survey.detection == "No")
-            {
-                return !string.IsNullOrEmpty(survey.confidence)
-                && !string.IsNullOrEmpty(survey.report_S);
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        public void SaveTrial(StateData updatedStateData)
-        {
-            TrialJson trialJson = new TrialJson(surveyD, updatedStateData);
-            string json = JsonUtility.ToJson(trialJson, false);
-            string filePath = Path.Combine(dataRecorder.sessionPath, "Survey.json");
-            File.AppendAllText(filePath, json + "\n");
-
-            //Reset
-            clearSelection();
-            questionUI.ClearUI();
-            Debug.Log("survey complete");
-        }
-
-        private void clearSelection()
-        {
-            surveyD = new SurveyData();
-            stateD = new StateData();
-            firstTimeActivation = true;
-        }
-
-
-        public ToggleGroup toggleGroupConfidence;
-        public ToggleGroup toggleGroupExplanation;
-
-        public string GetSelectedToggleValue(ToggleGroup toggleGroup)
-        {
-            foreach (Toggle toggle in toggleGroup.GetComponentsInChildren<Toggle>())
-            {
-                if (toggle.isOn)
-                {
-                    ToggleID id = toggle.GetComponent<ToggleID>();
-                    if (id != null)
-                    {
-                        return id.value;
-                    }
-                }
-            }
-            return null;
-        }
-        public void StoreToggleValues()
-        {
-            surveyD.confidence = GetSelectedToggleValue(toggleGroupConfidence);
-            surveyD.pausibility = GetSelectedToggleValue(toggleGroupExplanation);
-
-            Debug.Log($"Confidence: {surveyD.confidence}, Explanation: {surveyD.pausibility}");
-        }
-
-        public void stateDataUpdate()
-        {
-            stateD.session_T = GameStateManager.instance.GetCurrentSessionData().ToString();
-            stateD.triallNo = GameStateManager.instance.GetTrialNumber().ToString();
-            var gsm = GameStateManager.instance;
-            GameStateManager.TrialData? trialData = gsm.GetCurrentTrialData();
-            if (trialData.HasValue)
-            {
-                TrialData trial = trialData.Value;
-                stateD.anomaly_T = trial.state.ToString();
-                stateD.initial_T = trial.trialStartTime.ToString();
-                //stateD.in_Hand_T = trial.objectInHand.ToString();
-                //stateD.at_Target_T = trial.objectAtTarget.ToString();
-                stateD.report_E = trial.trialEndTime.ToString();
-                //stateD.at_Source_T = trial.objectAtSource.ToString();
-            }
-
+            this.source = string.IsNullOrEmpty(source) ? null : source;
+            this.from   = from;
+            this.to     = to;
+            timestamp   = time.ToString("yyyy-MM-dd_HH-mm-ss.fff");
         }
     }
 
+    public class SurveyEntry
+    {
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string detection;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string confidence;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string plausibility;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string reportStart;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string reportEnd;
+    }
+
+    public class TrialRecord
+    {
+        public int    trialNumber;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string anomaly;
+
+        public List<TransitionEvent> stateTransitions   = new();
+        public List<TransitionEvent> anomalyTransitions = new();
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public SurveyEntry survey;
+    }
+
+    public class SessionRecord
+    {
+        public string sessionLabel;
+        public string sessionStart;
+        public List<TrialRecord> trials = new();
+    }
+
+    public class ExperimentRecord
+    {
+        public int    subjectID;
+        public string experimentStart;
+        public List<SessionRecord> sessions = new();
+    }
+
+    // ── Survey Input ──────────────────────────────────────────────────────────────
+
+    public class SurveyData
+    {
+        public string detection;
+        public string confidence;
+        public string plausibility;
+        public string reportStart;
+    }
+
+    // ── SurveyDataRecorder ────────────────────────────────────────────────────────
+
+    public class SurveyDataRecorder : MonoBehaviour
+    {
+        [Header("References")]
+        [SerializeField] private GameStateManager      gsm;
+        [SerializeField] private TrackingDataRecorder  trackingdataRecorder;
+
+        // ── File path ──────────────────────────────────────────────────────────────
+
+        private string OutputPath => trackingdataRecorder != null && !string.IsNullOrEmpty(trackingdataRecorder.sessionPath)
+            ? Path.Combine(trackingdataRecorder.sessionPath, "ExperimentData.json")
+            : null;
+
+        // ── In-memory experiment data ──────────────────────────────────────────────
+
+        private ExperimentRecord _experiment;
+
+        // ── Current context pointers ──────────────────────────────────────────────
+
+        private SessionRecord _currentSession;
+        private TrialRecord   _currentTrial;
+        private int           _trialNumber;
+
+        // ── Dynamic ASM tracking ──────────────────────────────────────────────────
+
+        private readonly List<AnomalyStateManager> _trackedAsms = new();
+
+        // ── Lifecycle ──────────────────────────────────────────────────────────────
+
+        private void Awake()
+        {
+            if (gsm == null) gsm = GameStateManager.instance;
+        }
+
+        private void OnEnable()
+        {
+            ExperimentSequencer.OnExperimentBegan += OnExperimentBegan;
+            ExperimentSequencer.OnSessionBegan    += OnSessionBegan;
+            ExperimentSequencer.OnTrialBegan      += OnTrialBegan;
+            ExperimentSequencer.OnTrialEnded      += OnTrialEnded;
+
+            if (gsm != null)
+                gsm.OnStateChanged += OnStateChanged;
+
+            AnomalyStateManager.OnRegistered   += TrackAsm;
+            AnomalyStateManager.OnUnregistered += UntrackAsm;
+        }
+
+        private void OnDisable()
+        {
+            ExperimentSequencer.OnExperimentBegan -= OnExperimentBegan;
+            ExperimentSequencer.OnSessionBegan    -= OnSessionBegan;
+            ExperimentSequencer.OnTrialBegan      -= OnTrialBegan;
+            ExperimentSequencer.OnTrialEnded      -= OnTrialEnded;
+
+            if (gsm != null)
+                gsm.OnStateChanged -= OnStateChanged;
+
+            AnomalyStateManager.OnRegistered   -= TrackAsm;
+            AnomalyStateManager.OnUnregistered -= UntrackAsm;
+
+            foreach (var asm in _trackedAsms)
+                asm.OnAnomalyStateChanged -= OnAnomalyStateChanged;
+            _trackedAsms.Clear();
+        }
+
+        // ── ASM Registration ──────────────────────────────────────────────────────
+
+        private void TrackAsm(AnomalyStateManager asm)
+        {
+            if (_trackedAsms.Contains(asm)) return;
+            _trackedAsms.Add(asm);
+            asm.OnAnomalyStateChanged += OnAnomalyStateChanged;
+            Debug.Log($"[SurveyDataRecorder] Tracking ASM: {asm.gameObject.name} ({_trackedAsms.Count} total)");
+        }
+
+        private void UntrackAsm(AnomalyStateManager asm)
+        {
+            if (!_trackedAsms.Remove(asm)) return;
+            asm.OnAnomalyStateChanged -= OnAnomalyStateChanged;
+            Debug.Log($"[SurveyDataRecorder] Untracked ASM: {asm.gameObject.name} ({_trackedAsms.Count} remaining)");
+        }
+
+        // ── Sequencer Event Handlers ──────────────────────────────────────────────
+
+        private void OnExperimentBegan(int subjectID)
+        {
+            if (OutputPath == null)
+            {
+                Debug.LogError("[SurveyDataRecorder] No sessionPath yet. Call StartRecording() first.");
+                return;
+            }
+
+            _experiment = new ExperimentRecord
+            {
+                subjectID       = subjectID,
+                experimentStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
+            };
+
+            _trialNumber = 0;
+            Debug.Log($"[SurveyDataRecorder] Experiment initialised. Output: {OutputPath}");
+        }
+
+        private void OnSessionBegan(string sessionLabel)
+        {
+            _currentSession = new SessionRecord
+            {
+                sessionLabel = sessionLabel,
+                sessionStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
+            };
+
+            _experiment.sessions.Add(_currentSession);
+            _trialNumber = 0;
+
+            Debug.Log($"[SurveyDataRecorder] Session begun: {sessionLabel}");
+        }
+
+        private void OnTrialBegan(AnomalyDefinition anomaly)
+        {
+            if (_currentSession == null)
+            {
+                Debug.LogError("[SurveyDataRecorder] OnTrialBegan received with no active session.");
+                return;
+            }
+
+            _trialNumber++;
+            string anomalyId = anomaly != null ? anomaly.id : null;
+
+            _currentTrial = new TrialRecord
+            {
+                trialNumber = _trialNumber,
+                anomaly     = anomalyId,
+            };
+
+            _currentSession.trials.Add(_currentTrial);
+            Debug.Log($"[SurveyDataRecorder] Trial {_trialNumber} begun. Anomaly: {anomalyId ?? "NORMAL"}");
+        }
+
+        private void OnTrialEnded()
+        {
+            if (_currentTrial == null)
+            {
+                Debug.LogError("[SurveyDataRecorder] OnTrialEnded received with no active trial.");
+                return;
+            }
+
+            _currentTrial = null;
+            Flush();
+            Debug.Log("[SurveyDataRecorder] Trial ended and flushed.");
+        }
+
+        // ── Public API ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Submit survey responses for the current trial.
+        /// Attaches them to the current trial record and flushes to disk.
+        /// </summary>
+        public void SubmitSurvey(SurveyData data)
+        {
+            if (_currentTrial == null)
+            {
+                Debug.LogError("[SurveyDataRecorder] SubmitSurvey called with no active trial.");
+                return;
+            }
+
+            _currentTrial.survey = new SurveyEntry
+            {
+                detection    = data.detection,
+                confidence   = data.confidence,
+                plausibility = data.plausibility,
+                reportStart  = data.reportStart,
+                reportEnd    = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
+            };
+
+            Flush();
+        }
+
+        // ── GSM Event Handlers ────────────────────────────────────────────────────
+
+        private void OnStateChanged(int fromIndex, int toIndex, DateTime timestamp)
+        {
+            if (_currentTrial == null) return;
+
+            _currentTrial.stateTransitions.Add(new TransitionEvent(
+                from: gsm.StateName(fromIndex),
+                to:   gsm.StateName(toIndex),
+                time: timestamp));
+        }
+
+        // ── ASM Event Handler ─────────────────────────────────────────────────────
+
+        private void OnAnomalyStateChanged(AnomalyStateManager sender, AnomalyState from, AnomalyState to, DateTime timestamp)
+        {
+            if (_currentTrial == null) return;
+
+            _currentTrial.anomalyTransitions.Add(new TransitionEvent(
+                from:   from.ToString(),
+                to:     to.ToString(),
+                time:   timestamp,
+                source: sender.gameObject.name));
+        }
+
+        // ── File Writing ──────────────────────────────────────────────────────────
+
+        private void Flush()
+        {
+            string path = OutputPath;
+            if (path == null)
+            {
+                Debug.LogError("[SurveyDataRecorder] Cannot flush — no output path available.");
+                return;
+            }
+            try
+            {
+                var settings = new JsonSerializerSettings
+                {
+                    NullValueHandling = NullValueHandling.Ignore,
+                    Formatting        = Formatting.Indented,
+                };
+                string json = JsonConvert.SerializeObject(_experiment, settings);
+                File.WriteAllText(path, json);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[SurveyDataRecorder] Failed to write file: {e.Message}");
+            }
+        }
+    }
 }

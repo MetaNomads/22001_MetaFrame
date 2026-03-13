@@ -1,8 +1,7 @@
-using MetaFrame.Data;
-using UnityEngine;
-using System.Collections.Generic;
 using System;
-using static MetaFrame.Data.SurveyDataRecorder;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -10,303 +9,478 @@ using UnityEditor;
 
 namespace MetaFrame.State
 {
+    // ── State Slot ────────────────────────────────────────────────────────────────
+    // Lives on the GSM. Pairs a StateDefinition asset with scene-bound callbacks
+    // and transition rules.
+
+    [Serializable]
+    public class StateSlot
+    {
+        [Tooltip("Drag a StateDefinition asset here.")]
+        public StateDefinition definition;
+
+        [Tooltip("Which states are allowed to transition into this one.\n" +
+                 "Leave empty to allow from any state.")]
+        public List<StateDefinition> allowedFrom = new();
+
+        public UnityEvent onEnter;
+        public UnityEvent onExit;
+
+        public string DisplayName =>
+            definition != null ? definition.displayName : "(unassigned)";
+    }
+
+    // ── StateIndex Attribute ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tag an int field with this to render it as a named-state dropdown
+    /// pulled from the scene's GameStateManager.
+    /// </summary>
+    public class StateIndexAttribute : PropertyAttribute { }
+
+    // ── GameStateManager ──────────────────────────────────────────────────────────
+
     public class GameStateManager : MonoBehaviour
     {
         public static GameStateManager instance;
 
-        [Header("Reference Scripts")]
-        [SerializeField] private SurveyDataRecorder surveyDataRecorder;
-        [SerializeField] private SpawnMechanism spawnMechanism;
+        [SerializeField] private List<StateSlot>   slots            = new();
+        [SerializeField] private StateDefinition   idleState;
 
-        // ── Enums ──────────────────────────────────────────────────
+        // ── Runtime ────────────────────────────────────────────────────────────────
 
-        public enum SessionType
-        {
-            TUTORIAL,
-            SESSION_A,
-            SESSION_B,
-            SESSION_C,
-        }
+        private int _currentIndex = -1;
 
-        [System.Flags]
-        public enum LevelState
-        {
-            Idle      = 1 << 0,
-            Initial   = 1 << 1,
-            At_Source = 1 << 2,
-            In_Hand   = 1 << 3,
-            At_Target = 1 << 4,
-            Removal   = 1 << 5,
-        }
+        // ── Public Accessors ───────────────────────────────────────────────────────
 
-        // ── Data Structs ───────────────────────────────────────────
+        public int               CurrentStateIndex      => _currentIndex;
+        public StateDefinition   CurrentStateDefinition => SlotAt(_currentIndex)?.definition;
+        public int               CurrentStateBit        => IndexToBit(_currentIndex);
+        public int               SlotCount              => slots.Count;
 
-        [System.Serializable]
-        public struct TrialData
-        {
-            [Tooltip("Anomaly to occur during this trial. Drag an AnomalyDefinition asset here.\n" +
-                    "Leave null for a NORMAL (no-anomaly) trial.")]
-            public AnomalyDefinition anomalyDefinition;
+        /// <summary>Read-only slot list, used by property drawers.</summary>
+        public IReadOnlyList<StateSlot> Slots => slots;
 
-            [System.NonSerialized] public string trialStartTime;
-            [System.NonSerialized] public string trialEndTime;
-            [System.NonSerialized] public Dictionary<LevelState, string> levelStateTimestamps;
-        }
+        // ── C# Events ─────────────────────────────────────────────────────────────
 
-        [System.Serializable]
-        public struct SequenceData
-        {
-            public List<TrialData> trialData;
-        }
+        /// <summary>Fires after every successful transition. Carries from index, to index,
+        /// and the exact DateTime the transition occurred — generated at source for precision.</summary>
+        public event Action<int, int, DateTime> OnStateChanged;
 
-        [System.Serializable]
-        public struct SessionData
-        {
-            public SessionType sessionType;
-            public List<SequenceData> sequences;
-            [System.NonSerialized] public int currentSequence;
-        }
-
-        // ── Session Data ───────────────────────────────────────────
-
-        [SerializeField] private List<SessionData> SessionSequences = new List<SessionData>();
-        [SerializeField] private SessionData? currentSessionData = null;
-
-        // ── Events ─────────────────────────────────────────────────
-
-        /// <summary>Fires at the start of every trial.</summary>
-        public event Action<SessionData?, int, TrialData> GameStateTrigger;
-
-        /// <summary>Fires whenever the object reaches a new level state.</summary>
-        public event Action<SessionData?, int, LevelState> LevelStateTrigger;
-
-        // ── Internal ───────────────────────────────────────────────
-
-        private int trialNumber = 0;
-        private bool experimentInProgress = false;
-        private List<TrialData> currentTrialList;
-
-        // ── Lifecycle ──────────────────────────────────────────────
+        // ── Lifecycle ──────────────────────────────────────────────────────────────
 
         private void Awake()
         {
             if (instance != null)
             {
-                Debug.LogWarning("A second GameStateManager was detected and deleted!");
+                Debug.LogWarning("[GSM] Duplicate GameStateManager destroyed.");
                 Destroy(gameObject);
                 return;
             }
             instance = this;
         }
 
-        // ── Session Control ────────────────────────────────────────
-
-        public void UpdateSessionType(SessionType sessionType)
+        private void Start()
         {
-            currentSessionData = MatchSessionTypeToData(sessionType);
-            currentTrialList   = GetRandomSequenceFromSession(sessionType);
+            if (idleState != null)
+                ForceState(idleState);
+            else if (slots.Count > 0)
+                ForceState(0);
         }
 
-        public SessionData? MatchSessionTypeToData(SessionType sessionType)
-        {
-            foreach (var session in SessionSequences)
-                if (session.sessionType == sessionType)
-                    return session;
-
-            Debug.LogError($"[GSM] Session '{sessionType}' not found in SessionSequences!");
-            return null;
-        }
-
-        private List<TrialData> GetRandomSequenceFromSession(SessionType sessionType)
-        {
-            for (int i = 0; i < SessionSequences.Count; i++)
-            {
-                if (SessionSequences[i].sessionType != sessionType) continue;
-
-                int selected        = UnityEngine.Random.Range(0, SessionSequences[i].sequences.Count);
-                SessionData session = SessionSequences[i];
-                session.currentSequence = selected;
-                SessionSequences[i]     = session;
-                return SessionSequences[i].sequences[selected].trialData;
-            }
-
-            Debug.LogError($"[GSM] Session '{sessionType}' not registered in GetRandomSequenceFromSession!");
-            return null;
-        }
-
-        // ── Trial Control ──────────────────────────────────────────
-
-        public void ProgressTrial()
-        {
-            if (!experimentInProgress)
-            {
-                if (currentSessionData == null)
-                {
-                    Debug.LogError("[GSM] Session type not set. Will not begin experiment.");
-                    return;
-                }
-                BeginNextTrial();
-                experimentInProgress = true;
-                Debug.Log("[GSM] Experiment started.");
-            }
-            else
-            {
-                UpdateDataThenBeginNextTrial(surveyDataRecorder.stateD);
-            }
-        }
-
-        public void BeginNextTrial()
-        {
-            if (trialNumber >= currentTrialList.Count)
-            {
-                Debug.LogWarning("[GSM] No more trials available!");
-                return;
-            }
-
-            if (!CheckIfTrialCanContinue()) return;
-
-            trialNumber++;
-
-            TrialData trialData             = currentTrialList[trialNumber];
-            trialData.trialStartTime        = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            trialData.levelStateTimestamps  = new Dictionary<LevelState, string>();
-            currentTrialList[trialNumber]   = trialData;
-
-            string anomalyLabel = trialData.anomalyDefinition != null
-                ? trialData.anomalyDefinition.ToString()
-                : "NORMAL";
-            Debug.Log($"[GSM] Trial {trialNumber} starting. Anomaly: {anomalyLabel}");
-
-            GameStateTrigger?.Invoke(currentSessionData, trialNumber, currentTrialList[trialNumber]);
-            spawnMechanism.SpawnCup();
-        }
-
-        private bool CheckIfTrialCanContinue()
-        {
-            if ((trialNumber + 1) < currentTrialList.Count) return true;
-            ConcludeSession();
-            return false;
-        }
-
-        private void ConcludeSession()
-        {
-            Debug.Log("[GSM] Session concluded.");
-            experimentInProgress = false;
-            currentSessionData   = null;
-            currentTrialList     = null;
-        }
-
-        public void UpdateDataThenBeginNextTrial(StateData stateData)
-        {
-            TrialData trialData           = currentTrialList[trialNumber];
-            trialData.trialEndTime        = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            currentTrialList[trialNumber] = trialData;
-
-            EndCurrentTrial();
-            BeginNextTrial();
-        }
-
-        public void EndCurrentTrial()
-        {
-            spawnMechanism.DestroyCup();
-            Debug.Log($"[GSM] Ending trial {trialNumber}.");
-        }
-
-        // ── Level State Signals ────────────────────────────────────
-
-        public void FireLevelState(LevelState levelState)
-        {
-            TrialData trialData = currentTrialList[trialNumber];
-            if (trialData.levelStateTimestamps == null)
-                trialData.levelStateTimestamps = new Dictionary<LevelState, string>();
-            trialData.levelStateTimestamps[levelState] = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            currentTrialList[trialNumber] = trialData;
-
-            LevelStateTrigger?.Invoke(currentSessionData, trialNumber, levelState);
-        }
-
-        public void HandGrabbedObjectSignal()   => FireLevelState(LevelState.In_Hand);
-        public void ObjectReachedSourceSignal() => FireLevelState(LevelState.At_Source);
-        public void ObjectReachedTargetSignal() => FireLevelState(LevelState.At_Target);
-
-        // ── Getters ────────────────────────────────────────────────
-
-        public SessionData? GetCurrentSessionData() => currentSessionData;
-        public TrialData?   GetCurrentTrialData()   => currentTrialList?[trialNumber];
-        public int          GetTrialNumber()        => trialNumber;
+        // ── Transition API — by StateDefinition ───────────────────────────────────
 
         /// <summary>
-        /// Returns the display name of the anomaly assigned to the current trial,
-        /// or "NORMAL" if no anomaly definition is assigned.
+        /// Request a transition to the slot whose definition matches <paramref name="to"/>.
+        /// Validates allowedFrom rules; blocks and logs an error on violation.
         /// </summary>
-        public string GetCurrentAnomalyName()
+        public void RequestTransition(StateDefinition to)
         {
-            var trial = GetCurrentTrialData();
-            return trial?.anomalyDefinition != null
-                ? trial.Value.anomalyDefinition.ToString()
-                : "NORMAL";
+            int toIndex = IndexOf(to);
+            if (toIndex < 0)
+            {
+                Debug.LogError($"[GSM] RequestTransition: '{to?.displayName}' not found in slots.");
+                return;
+            }
+            RequestTransition(toIndex);
         }
+
+        /// <summary>
+        /// Request a transition by slot index.
+        /// </summary>
+        public bool RequestTransition(int toIndex)
+        {
+            if (!IsValidIndex(toIndex))
+            {
+                Debug.LogError($"[GSM] RequestTransition: index {toIndex} out of range.");
+                return false;
+            }
+
+            var slot = slots[toIndex];
+
+            if (slot.allowedFrom != null && slot.allowedFrom.Count > 0)
+            {
+                var currentDef = SlotAt(_currentIndex)?.definition;
+                if (!slot.allowedFrom.Contains(currentDef))
+                {
+                    Debug.LogError(
+                        $"[GSM] Transition BLOCKED: {StateName(_currentIndex)} → {slot.DisplayName}. " +
+                        $"Allowed from: [{string.Join(", ", slot.allowedFrom.ConvertAll(d => d?.displayName ?? "null"))}]");
+                    return false;
+                }
+            }
+
+            ApplyTransition(toIndex);
+            return true;
+        }
+
+        /// <summary>Bypass rules and force a transition to the matching slot.</summary>
+        public void ForceState(StateDefinition to)
+        {
+            int i = IndexOf(to);
+            if (i < 0) { Debug.LogError($"[GSM] ForceState: '{to?.displayName}' not found."); return; }
+            ApplyTransition(i);
+        }
+
+        /// <summary>Bypass rules and force a transition by slot index.</summary>
+        public void ForceState(int toIndex)
+        {
+            if (!IsValidIndex(toIndex)) { Debug.LogError($"[GSM] ForceState: index {toIndex} out of range."); return; }
+            ApplyTransition(toIndex);
+        }
+
+        /// <summary>Resets to the idleState asset if assigned, otherwise falls back to slot 0.
+        /// Mirrors the Start() behaviour — useful for restart buttons wired through the event system.</summary>
+        public void ResetToIdleState()
+        {
+            if (idleState != null)
+                ForceState(idleState);
+            else if (slots.Count > 0)
+                ForceState(0);
+            else
+                Debug.LogWarning("[GSM] ResetToIdleState: no idleState set and no slots available.");
+        }
+
+        private void ApplyTransition(int toIndex)
+        {
+            int      fromIndex = _currentIndex;
+            DateTime now       = DateTime.Now;
+
+            SlotAt(fromIndex)?.onExit?.Invoke();
+
+            _currentIndex = toIndex;
+            slots[toIndex].onEnter?.Invoke();
+
+            OnStateChanged?.Invoke(fromIndex, toIndex, now);
+            Debug.Log($"[GSM] {StateName(fromIndex)} → {StateName(toIndex)}");
+        }
+
+        // ── Helpers ────────────────────────────────────────────────────────────────
+
+        public static int IndexToBit(int index) => index >= 0 ? 1 << index : 0;
+
+        public string StateName(int index) => SlotAt(index)?.DisplayName ?? $"[{index}]";
+
+        public string[] StateNameArray()
+        {
+            var names = new string[slots.Count];
+            for (int i = 0; i < slots.Count; i++)
+                names[i] = slots[i].DisplayName;
+            return names;
+        }
+
+        public int IndexOf(StateDefinition def)
+        {
+            for (int i = 0; i < slots.Count; i++)
+                if (slots[i].definition == def) return i;
+            return -1;
+        }
+
+        private StateSlot   SlotAt(int index)     => IsValidIndex(index) ? slots[index] : null;
+        private bool        IsValidIndex(int index) => index >= 0 && index < slots.Count;
     }
 
-    // ── Editor ─────────────────────────────────────────────────────────────────────
+    // ── Editor ────────────────────────────────────────────────────────────────────
 
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
+
     [CustomEditor(typeof(GameStateManager))]
     public class GameStateManagerEditor : Editor
     {
-        private bool _sessionFoldout = true;
-        private bool _levelFoldout   = true;
+        private SerializedProperty _slotsProp;
+        private SerializedProperty _idleStateProp;
+        private List<bool>         _foldouts        = new();
+        private int                _pendingMoveFrom = -1;
+        private int                _pendingMoveTo   = -1;
+        private int                _pendingRemove   = -1;
+
+        private void OnEnable()
+        {
+            _slotsProp        = serializedObject.FindProperty("slots");
+            _idleStateProp = serializedObject.FindProperty("idleState");
+        }
 
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
 
-            DrawPropertiesExcluding(serializedObject, "m_Script");
+            DrawPropertiesExcluding(serializedObject, "m_Script", "slots", "idleState");
 
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Enum Reference Lists", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(
-                "These lists show current enum values. To add a new value, edit the enum in GameStateManager.cs.\n\n" +
-                "Anomaly types are now AnomalyDefinition ScriptableObjects — " +
-                "create them via right-click → Anomaly / Anomaly Definition.",
-                MessageType.Info);
+            EditorGUILayout.Space(6);
 
-            DrawEnumList<GameStateManager.SessionType>("Session Types", ref _sessionFoldout);
-            DrawEnumList<GameStateManager.LevelState> ("Level States",  ref _levelFoldout);
+            // Idle state — asset picker
+            EditorGUILayout.PropertyField(_idleStateProp,
+                new GUIContent("Idle State", "Which state to enter on Start."));
+
+            EditorGUILayout.Space(8);
+            EditorGUILayout.LabelField("States", EditorStyles.boldLabel);
+            EditorGUILayout.Space(2);
+
+            while (_foldouts.Count < _slotsProp.arraySize) _foldouts.Add(false);
+            while (_foldouts.Count > _slotsProp.arraySize) _foldouts.RemoveAt(_foldouts.Count - 1);
+
+            for (int i = 0; i < _slotsProp.arraySize; i++)
+                DrawSlotBlock(i);
+
+            // Deferred move / remove
+            if (_pendingRemove >= 0)
+            {
+                _slotsProp.DeleteArrayElementAtIndex(_pendingRemove);
+                _foldouts.RemoveAt(_pendingRemove);
+                _pendingRemove = -1;
+            }
+            else if (_pendingMoveFrom >= 0)
+            {
+                _slotsProp.MoveArrayElement(_pendingMoveFrom, _pendingMoveTo);
+                (_foldouts[_pendingMoveFrom], _foldouts[_pendingMoveTo]) =
+                    (_foldouts[_pendingMoveTo], _foldouts[_pendingMoveFrom]);
+                _pendingMoveFrom = _pendingMoveTo = -1;
+            }
+
+            EditorGUILayout.Space(2);
+            GUI.color = new Color(0.4f, 0.75f, 1f);
+            if (GUILayout.Button("+ Add State", GUILayout.Height(26)))
+            {
+                _slotsProp.arraySize++;
+                _foldouts.Add(false);
+            }
+            GUI.color = Color.white;
 
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawEnumList<TEnum>(string title, ref bool foldout) where TEnum : Enum
+        // ── Slot Block ─────────────────────────────────────────────────────────────
+
+        private void DrawSlotBlock(int index)
         {
-            var values = (TEnum[])Enum.GetValues(typeof(TEnum));
-            var style  = new GUIStyle(GUI.skin.box) { padding = new RectOffset(6, 6, 6, 6) };
-            EditorGUILayout.BeginVertical(style);
+            var slot       = _slotsProp.GetArrayElementAtIndex(index);
+            var defProp    = slot.FindPropertyRelative("definition");
+            var allowProp  = slot.FindPropertyRelative("allowedFrom");
+            var onEnter    = slot.FindPropertyRelative("onEnter");
+            var onExit     = slot.FindPropertyRelative("onExit");
 
-            EditorGUILayout.BeginHorizontal();
-            foldout = EditorGUILayout.Foldout(foldout, $"{title}  ({values.Length})", true, EditorStyles.foldoutHeader);
-            EditorGUILayout.EndHorizontal();
+            var   defAsset = defProp.objectReferenceValue as StateDefinition;
+            string header  = defAsset != null ? defAsset.displayName : $"(unassigned slot {index})";
 
-            if (foldout)
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+            // ── Header row ─────────────────────────────────────────
+            Rect headerRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight + 2f);
+
+            const float BTN_W  = 24f;
+            const float GAP    = 2f;
+            const float FOLD_W = 20f;
+
+            float right      = headerRect.xMax;
+            Rect  removeRect = new Rect(right - BTN_W,           headerRect.y, BTN_W, headerRect.height);
+            Rect  downRect   = new Rect(right - BTN_W*2 - GAP,   headerRect.y, BTN_W, headerRect.height);
+            Rect  upRect     = new Rect(right - BTN_W*3 - GAP*2, headerRect.y, BTN_W, headerRect.height);
+            Rect  foldRect   = new Rect(headerRect.x, headerRect.y, FOLD_W, headerRect.height);
+            Rect  labelRect  = new Rect(headerRect.x + FOLD_W + GAP, headerRect.y,
+                                        upRect.x - headerRect.x - FOLD_W - GAP * 2, headerRect.height);
+
+            if (GUI.Button(foldRect, _foldouts[index] ? "▼" : "▶", EditorStyles.label))
+                _foldouts[index] = !_foldouts[index];
+
+            EditorGUI.LabelField(labelRect, header, EditorStyles.boldLabel);
+
+            GUI.enabled = index > 0;
+            if (GUI.Button(upRect,   "▲")) { _pendingMoveFrom = index; _pendingMoveTo = index - 1; }
+
+            GUI.enabled = index < _slotsProp.arraySize - 1;
+            if (GUI.Button(downRect, "▼")) { _pendingMoveFrom = index; _pendingMoveTo = index + 1; }
+
+            GUI.enabled = true;
+            GUI.color   = new Color(1f, 0.5f, 0.5f);
+            if (GUI.Button(removeRect, "✕")) _pendingRemove = index;
+            GUI.color = Color.white;
+
+            // ── Body ───────────────────────────────────────────────
+            if (_foldouts[index])
             {
                 EditorGUI.indentLevel++;
-                foreach (var val in values)
-                {
-                    EditorGUILayout.BeginHorizontal(GUI.skin.box);
-                    GUILayout.Label(val.ToString(), EditorStyles.label);
-                    GUILayout.Label($"= {Convert.ToInt32(val)}", EditorStyles.miniLabel, GUILayout.Width(40));
-                    EditorGUILayout.EndHorizontal();
-                }
                 EditorGUILayout.Space(2);
-                EditorGUILayout.HelpBox(
-                    $"To add a new {title.TrimEnd('s')} value, add it to the {typeof(TEnum).Name} enum in GameStateManager.cs.",
-                    MessageType.None);
+
+                // Asset picker
+                EditorGUI.BeginChangeCheck();
+                EditorGUILayout.PropertyField(defProp, new GUIContent("State Definition"));
+                bool defChanged = EditorGUI.EndChangeCheck();
+
+                // Only show the rest once an asset is assigned
+                if (defProp.objectReferenceValue != null)
+                {
+                    EditorGUILayout.Space(4);
+
+                    // Allowed From — checklist of other assigned slots
+                    EditorGUILayout.LabelField(
+                        new GUIContent("Allowed From",
+                            "Which states may transition into this one.\nEmpty = any state allowed."),
+                        EditorStyles.boldLabel);
+
+                    EditorGUI.indentLevel++;
+                    bool anyOther = false;
+
+                    for (int other = 0; other < _slotsProp.arraySize; other++)
+                    {
+                        if (other == index) continue;
+
+                        var otherDefProp = _slotsProp.GetArrayElementAtIndex(other)
+                                                     .FindPropertyRelative("definition");
+                        var otherDef = otherDefProp.objectReferenceValue as StateDefinition;
+                        if (otherDef == null) continue;
+
+                        anyOther = true;
+                        bool included = ObjectListContains(allowProp, otherDef);
+                        bool toggled  = EditorGUILayout.Toggle(otherDef.displayName, included);
+
+                        if (toggled != included)
+                        {
+                            if (toggled) AddObjectToList(allowProp, otherDef);
+                            else         RemoveObjectFromList(allowProp, otherDef);
+                        }
+                    }
+
+                    if (!anyOther)
+                        EditorGUILayout.HelpBox(
+                            "Assign State Definitions to other slots to configure transition rules.",
+                            MessageType.None);
+
+                    EditorGUI.indentLevel--;
+
+                    EditorGUILayout.Space(4);
+                    EditorGUILayout.PropertyField(onEnter, new GUIContent("On Enter"));
+                    EditorGUILayout.PropertyField(onExit,  new GUIContent("On Exit"));
+
+                    // ── Play-mode test buttons ──────────────────────
+                    EditorGUILayout.Space(4);
+                    EditorGUILayout.LabelField("Test", EditorStyles.miniBoldLabel);
+                    EditorGUILayout.BeginHorizontal();
+
+                    bool inPlayMode = Application.isPlaying;
+                    var  gsm        = GameStateManager.instance;
+
+                    GUI.enabled = inPlayMode && gsm != null;
+
+                    GUI.color = new Color(0.5f, 1f, 0.6f);
+                    if (GUILayout.Button("Force Enter", GUILayout.Height(22)))
+                        gsm.ForceState(defAsset);
+
+                    GUI.color = new Color(1f, 0.85f, 0.4f);
+                    if (GUILayout.Button("Force Exit to Idle", GUILayout.Height(22)))
+                        gsm.ResetToIdleState();
+
+                    GUI.color   = Color.white;
+                    GUI.enabled = true;
+
+                    EditorGUILayout.EndHorizontal();
+
+                    if (!inPlayMode)
+                    {
+                        EditorGUILayout.HelpBox("Enter Play Mode to use test buttons.", MessageType.None);
+                    }
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox(
+                        "Assign a State Definition asset to configure this slot.\n" +
+                        "Create one via right-click → MetaFrame / State Definition.",
+                        MessageType.Info);
+                }
+
                 EditorGUI.indentLevel--;
+                EditorGUILayout.Space(2);
             }
 
             EditorGUILayout.EndVertical();
             EditorGUILayout.Space(2);
         }
+
+        // ── List Helpers ───────────────────────────────────────────────────────────
+
+        private static bool ObjectListContains(SerializedProperty list, UnityEngine.Object obj)
+        {
+            for (int i = 0; i < list.arraySize; i++)
+                if (list.GetArrayElementAtIndex(i).objectReferenceValue == obj) return true;
+            return false;
+        }
+
+        private static void AddObjectToList(SerializedProperty list, UnityEngine.Object obj)
+        {
+            list.arraySize++;
+            list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = obj;
+        }
+
+        private static void RemoveObjectFromList(SerializedProperty list, UnityEngine.Object obj)
+        {
+            for (int i = 0; i < list.arraySize; i++)
+            {
+                if (list.GetArrayElementAtIndex(i).objectReferenceValue == obj)
+                {
+                    list.DeleteArrayElementAtIndex(i);
+                    return;
+                }
+            }
+        }
     }
-    #endif
+
+    // ── StateIndex Property Drawer ────────────────────────────────────────────────
+
+    [CustomPropertyDrawer(typeof(StateIndexAttribute))]
+    public class StateIndexDrawer : PropertyDrawer
+    {
+        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+        {
+            var gsm = GetGSM();
+            if (gsm == null)
+            {
+                EditorGUI.HelpBox(position, "No GameStateManager in scene.", MessageType.Warning);
+                return;
+            }
+
+            string[] names = gsm.StateNameArray();
+            if (names.Length == 0)
+            {
+                EditorGUI.HelpBox(position, "No states defined in GameStateManager.", MessageType.Warning);
+                return;
+            }
+
+            int current = Mathf.Clamp(property.intValue, 0, names.Length - 1);
+            EditorGUI.BeginChangeCheck();
+            int chosen = EditorGUI.Popup(position, label.text, current, names);
+            if (EditorGUI.EndChangeCheck())
+                property.intValue = chosen;
+        }
+
+        private static GameStateManager GetGSM()
+        {
+            if (GameStateManager.instance != null) return GameStateManager.instance;
+#if UNITY_2023_1_OR_NEWER
+            return UnityEngine.Object.FindFirstObjectByType<GameStateManager>();
+#else
+            return UnityEngine.Object.FindObjectOfType<GameStateManager>();
+#endif
+        }
+    }
+
+#endif
 }

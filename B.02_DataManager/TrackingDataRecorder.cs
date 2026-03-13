@@ -10,7 +10,7 @@ using Newtonsoft.Json;
 
 namespace MetaFrame.Data
 {
-    public class DataRecorder : MonoBehaviour
+    public class TrackingDataRecorder : MonoBehaviour
     {
         [SerializeField] private DataManager _dataManager;
 

@@ -1,0 +1,747 @@
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+namespace MetaFrame.State
+{
+    
+    
+    // ── Stimuli Sequence ────────────────────────────────────────────────────────────────
+    // Each entry is an int:  0 = N (noise),  1 = A1,  2 = A2, ... n = An
+    
+    [System.Serializable]
+    public class StimuliSequence
+    {
+        public List<int> stimulus = new();
+    
+        public string[] ToStringArray()
+        {
+            return stimulus.Select(t => t == 0 ? "N" : $"A{t}").ToArray();
+        }
+    
+        public Dictionary<string, int> GetStats(int anomalyCount)
+        {
+            var counts = new Dictionary<string, int> { ["N"] = 0 };
+            for (int i = 1; i <= anomalyCount; i++)
+                counts[$"A{i}"] = 0;
+            foreach (var t in stimulus)
+            {
+                string key = t == 0 ? "N" : $"A{t}";
+                if (counts.ContainsKey(key)) counts[key]++;
+            }
+            return counts;
+        }
+    }
+    
+    // ── Session Group ─────────────────────────────────────────────────────────────
+    
+    [System.Serializable]
+    public class SessionGroup
+    {
+        public string        groupName     = "Session";
+        public List<Object>  anomalyObjects = new();
+    
+        public AnomalyDefinition GetAnomaly(int index)
+        {
+            if (index < 0 || index >= anomalyObjects.Count) return null;
+            return anomalyObjects[index] as AnomalyDefinition;
+        }
+    
+        public List<AnomalyDefinition> Anomalies =>
+            anomalyObjects.Select(o => o as AnomalyDefinition).ToList();
+    }
+    
+    // ── Resolved Sequence ──────────────────────────────────────────────────────────
+    
+    [System.Serializable]
+    public class ResolvedSequence
+    {
+        public string       sessionLabel;
+        public SessionGroup group;
+        public int          listIndex;
+        public int[]        stimulusValues; // raw ints — 0 = Normal, 1..n = A1..An
+        public string[]     stimulus;       // display strings
+    
+        public int TrialCount => stimulusValues?.Length ?? 0;
+    
+        public AnomalyDefinition ResolveAnomaly(int stimulusEntry)
+        {
+            if (stimulusEntry == 0 || group == null) return null;
+            return group.GetAnomaly(stimulusEntry - 1);
+        }
+    
+        public AnomalyDefinition AnomalyAt(int trialIndex)
+            => ResolveAnomaly(stimulusValues[trialIndex]);
+    }
+    
+    // ── ExperimentSequencer ───────────────────────────────────────────────────────
+    
+    public class ExperimentSequencer : MonoBehaviour
+    {
+        [Min(1)] public int anomalyCount = 3;
+    
+        public int subjectID = 1;
+    
+        [Header("Tutorial Session")]
+        public SessionGroup    tutorialGroup           = new() { groupName = "Tutorial" };
+        public StimuliSequence tutorialStimuliSequence = new();
+    
+        [Header("Session Groups")]
+        public List<SessionGroup> sessionGroups = new();
+    
+        [Header("Stimuli Sequences")]
+        public List<StimuliSequence> stimuliSequences = new();
+    
+        [HideInInspector] public List<ResolvedSequence> resolvedSequences = new();
+    
+        // ── References ─────────────────────────────────────────────────────────────
+    
+        [SerializeField] private GameStateManager gsm;
+        [SerializeField] private StateDefinition  stateExperimentStart;
+        [SerializeField] private StateDefinition  stateTrialStart;
+        [SerializeField] private StateDefinition  stateTrialEnd;
+        [SerializeField] private StateDefinition  stateIdle;
+        [SerializeField] private StateDefinition  stateExperimentEnd;
+    
+        public GameStateManager  GSM                  => gsm;
+        public StateDefinition   StateExperimentStart => stateExperimentStart;
+        public StateDefinition   StateTrialStart      => stateTrialStart;
+        public StateDefinition   StateTrialEnd        => stateTrialEnd;
+        public StateDefinition   StateIdle  => stateIdle;
+        public StateDefinition   StateExperimentEnd   => stateExperimentEnd;
+    
+        // ── Runtime State ──────────────────────────────────────────────────────────
+    
+        private int _sessionIndex = 0;
+        private int _trialIndex   = 0;
+    
+        public int CurrentSessionIndex => _sessionIndex;
+        public int CurrentTrialIndex   => _trialIndex;
+    
+        public ResolvedSequence CurrentSession =>
+            resolvedSequences != null && _sessionIndex < resolvedSequences.Count
+                ? resolvedSequences[_sessionIndex] : null;
+    
+        // ── Static Events ──────────────────────────────────────────────────────────
+    
+        /// <summary>Fires once when the experiment is initialised.</summary>
+        public static event System.Action<int>              OnExperimentBegan;
+    
+        /// <summary>Fires at the start of each session.</summary>
+        public static event System.Action<string>           OnSessionBegan;
+    
+        /// <summary>Fires at the start of each trial. Carries the active anomaly (null = NORMAL).</summary>
+        public static event System.Action<AnomalyDefinition> OnTrialBegan;
+    
+        /// <summary>Fires at the end of each trial.</summary>
+        public static event System.Action                   OnTrialEnded;
+    
+        // ── Advance ────────────────────────────────────────────────────────────────
+    
+        /// <summary>
+        /// Wire to a "Next" button. Drives the experiment forward one beat:
+        ///   experiment_start / idle  → trial_start        (begin session + trial)
+        ///   any mid-trial state      → trial_end + trial_start   (next trial)
+        ///                            → trial_end + idle          (last trial in session)
+        ///                            → trial_end + experiment_end (last trial overall)
+        /// Transition validity is enforced by GSM allowedFrom rules.
+        /// </summary>
+        public void Advance()
+        {
+            var current = gsm.CurrentStateDefinition;
+    
+            if (current == stateExperimentStart || current == stateIdle)
+            {
+                // Session boundary — begin session and fire first trial
+                OnSessionBegan?.Invoke(CurrentSession.sessionLabel);
+                gsm.RequestTransition(stateTrialStart);
+                StartTrial();
+            }
+            else
+            {
+                // Mid-trial — close the trial, then route to next state
+                gsm.RequestTransition(stateTrialEnd);
+                OnTrialEnded?.Invoke();
+                _trialIndex++;
+    
+                if (_trialIndex < CurrentSession.TrialCount)
+                {
+                    // More trials in this session
+                    gsm.RequestTransition(stateTrialStart);
+                    StartTrial();
+                }
+                else
+                {
+                    // Session complete
+                    _sessionIndex++;
+                    _trialIndex = 0;
+    
+                    if (_sessionIndex < resolvedSequences.Count)
+                        gsm.RequestTransition(stateIdle);
+                    else
+                        gsm.RequestTransition(stateExperimentEnd);
+                }
+            }
+        }
+    
+        // ── Init ───────────────────────────────────────────────────────────────────
+    
+        /// <summary>
+        /// Call once before the experiment starts (e.g. on a setup screen).
+        /// Resolves the sequence and broadcasts to any listeners (e.g. SurveyDataRecorder).
+        /// </summary>
+        public void InitExperiment()
+        {
+            if (resolvedSequences == null || resolvedSequences.Count == 0)
+                LoadSequence();
+    
+            _sessionIndex = 0;
+            _trialIndex   = 0;
+    
+            OnExperimentBegan?.Invoke(subjectID);
+            Debug.Log("[Sequencer] Experiment initialised. Call Advance() from game_start to begin.");
+        }
+    
+        // ── Internal ───────────────────────────────────────────────────────────────
+    
+        private void StartTrial()
+        {
+            AnomalyDefinition anomaly = CurrentSession.AnomalyAt(_trialIndex);
+            OnTrialBegan?.Invoke(anomaly);
+    
+            Debug.Log($"[Sequencer] Session '{CurrentSession.sessionLabel}' " +
+                      $"| Trial {_trialIndex + 1}/{CurrentSession.TrialCount} " +
+                      $"| Anomaly: {(anomaly != null ? anomaly.id : "NORMAL")}");
+        }
+    
+        public void LoadSequence()
+        {
+            resolvedSequences.Clear();
+    
+            // ── Tutorial always goes first ──────────────────────────────────────────
+            resolvedSequences.Add(new ResolvedSequence
+            {
+                sessionLabel   = tutorialGroup.groupName,
+                group          = tutorialGroup,
+                listIndex      = 0,
+                stimulusValues = tutorialStimuliSequence?.stimulus.ToArray() ?? System.Array.Empty<int>(),
+                stimulus       = tutorialStimuliSequence?.ToStringArray() ?? System.Array.Empty<string>(),
+            });
+    
+            if (subjectID < 1 ||
+                sessionGroups == null || sessionGroups.Count == 0 ||
+                stimuliSequences    == null || stimuliSequences.Count    == 0)
+            {
+                Debug.Log(BuildSummary());
+                return;
+            }
+    
+            int n          = sessionGroups.Count;
+            int orderShift = (subjectID - 1) % n;
+    
+            for (int s = 0; s < n; s++)
+            {
+                int groupIdx = (s + orderShift) % n;
+                // Each subject starts at a different list, each session steps forward by 1
+                // Subject 1: L1, L2, L3 | Subject 2: L2, L3, L4 | Subject 3: L3, L4, L5 ...
+                int listIdx  = ((subjectID - 1) + s) % stimuliSequences.Count;
+    
+                resolvedSequences.Add(new ResolvedSequence
+                {
+                    sessionLabel   = sessionGroups[groupIdx].groupName,
+                    group          = sessionGroups[groupIdx],
+                    listIndex      = listIdx + 1,
+                    stimulusValues = stimuliSequences[listIdx].stimulus.ToArray(),
+                    stimulus       = stimuliSequences[listIdx].ToStringArray(),
+                });
+            }
+    
+            Debug.Log(BuildSummary());
+        }
+    
+        /// <summary>Returns the tutorial session (always resolvedSequences[0]).</summary>
+        public ResolvedSequence GetTutorialSession()
+        {
+            if (resolvedSequences == null || resolvedSequences.Count == 0)
+            {
+                Debug.LogWarning("[Sequencer] No sessions found. Call LoadSequence() first.");
+                return null;
+            }
+            return resolvedSequences[0];
+        }
+    
+        /// <summary>
+        /// Returns a regular session by 1-based number.
+        /// resolvedSequences[0] is always the tutorial, so Session 1 lives at index 1.
+        /// </summary>
+        public ResolvedSequence GetSession(int sessionNumber)
+        {
+            // offset by 1 to skip the tutorial slot at index 0
+            int i = sessionNumber;
+            if (resolvedSequences == null || i < 1 || i >= resolvedSequences.Count)
+            {
+                Debug.LogWarning("[Sequencer] Session not found. Call LoadSequence() first.");
+                return null;
+            }
+            return resolvedSequences[i];
+        }
+    
+        private string BuildSummary()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"[Sequencer] Subject S{subjectID:D2} — {resolvedSequences.Count} sessions (incl. tutorial) | {anomalyCount} anomalies/session");
+            foreach (var s in resolvedSequences)
+            {
+                string ids = string.Join(", ", s.group?.Anomalies
+                    .Where(a => a != null).Select(a => a.id) ?? Enumerable.Empty<string>());
+                string listLabel = s.listIndex == 0 ? "Tutorial List" : $"List {s.listIndex}";
+                sb.AppendLine($"  {s.sessionLabel}: [{s.group?.groupName}]  {ids}  |  {listLabel} ({s.stimulus.Length} stimulus)");
+            }
+            return sb.ToString();
+        }
+    
+        private void Start()
+    {
+        LoadSequence();
+        InitExperiment();
+        gsm.ForceState(stateExperimentStart);
+        Debug.Log("[Sequencer] Ready at experiment_start.");
+    }
+    }
+
+} // namespace MetaFrame.State
+
+// ── Custom Editor ──────────────────────────────────────────────────────────────
+
+#if UNITY_EDITOR
+namespace MetaFrame.State
+{
+    [CustomEditor(typeof(ExperimentSequencer))]
+    public class ExperimentSequencerEditor : Editor
+    {
+        private bool _tutorialFoldout    = false;
+        private bool _groupsFoldout      = false;
+        private bool _listsFoldout       = false;
+        private bool _stateConfigFoldout = false;
+    
+        private List<bool> _groupExpanded = new();
+        private List<bool> _listExpanded  = new();
+    
+        private SerializedProperty _anomalyCount;
+        private SerializedProperty _subjectID;
+        private SerializedProperty _tutorialGroup;
+        private SerializedProperty _tutorialStimuliSequence;
+        private SerializedProperty _sessionGroups;
+        private SerializedProperty _stimuliSequences;
+        private SerializedProperty _gsm;
+        private SerializedProperty _stateExperimentStart;
+        private SerializedProperty _stateTrialStart;
+        private SerializedProperty _stateTrialEnd;
+        private SerializedProperty _stateIdle;
+        private SerializedProperty _stateExperimentEnd;
+    
+        private void OnEnable()
+        {
+            _anomalyCount            = serializedObject.FindProperty("anomalyCount");
+            _subjectID               = serializedObject.FindProperty("subjectID");
+            _tutorialGroup           = serializedObject.FindProperty("tutorialGroup");
+            _tutorialStimuliSequence = serializedObject.FindProperty("tutorialStimuliSequence");
+            _sessionGroups           = serializedObject.FindProperty("sessionGroups");
+            _stimuliSequences        = serializedObject.FindProperty("stimuliSequences");
+            _gsm                     = serializedObject.FindProperty("gsm");
+            _stateExperimentStart = serializedObject.FindProperty("stateExperimentStart");
+            _stateTrialStart      = serializedObject.FindProperty("stateTrialStart");
+            _stateTrialEnd        = serializedObject.FindProperty("stateTrialEnd");
+            _stateIdle  = serializedObject.FindProperty("stateIdle");
+            _stateExperimentEnd   = serializedObject.FindProperty("stateExperimentEnd");
+        }
+    
+        public override void OnInspectorGUI()
+        {
+            serializedObject.Update();
+            var seq = (ExperimentSequencer)target;
+    
+            // Guard: Odin Inspector can invoke OnInspectorGUI before OnEnable
+            if (_anomalyCount == null) OnEnable();
+    
+            // ── Subject ID ──────────────────────────────────────────────
+            int ac = Mathf.Max(1, _anomalyCount.intValue);
+            EditorGUILayout.PropertyField(_subjectID, new GUIContent("Subject ID"));
+    
+            // ── Resolved Sequence — computed inline, no LoadSequence() ──
+            int n         = _sessionGroups.arraySize;
+            int listCount = _stimuliSequences.arraySize;
+            int sid       = _subjectID.intValue;
+    
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Resolved Sequence", EditorStyles.miniBoldLabel);
+            GUI.enabled = false;
+    
+            // ── Tutorial row (always first) ──────────────────────────────
+            {
+                var tutObjsProp = _tutorialGroup.FindPropertyRelative("anomalyObjects");
+                string tutGroupName = _tutorialGroup.FindPropertyRelative("groupName").stringValue;
+                var tutIds = new List<string>();
+                for (int a = 0; a < tutObjsProp.arraySize; a++)
+                {
+                    var def = tutObjsProp.GetArrayElementAtIndex(a).objectReferenceValue as AnomalyDefinition;
+                    if (def != null) tutIds.Add(def.id);
+                }
+                var tutStimulusProp  = _tutorialStimuliSequence.FindPropertyRelative("stimulus");
+                int tutStimulusCount = tutStimulusProp.arraySize;
+    
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.TextField($"{tutGroupName}   |   Tutorial List   |   {tutStimulusCount} stimulus");
+                if (tutIds.Count > 0)
+                    EditorGUILayout.TextField(string.Join(", ", tutIds));
+                EditorGUILayout.EndVertical();
+            }
+    
+            // ── Regular session rows ────────────────────────────────────
+            if (n > 0 && listCount > 0 && sid >= 1)
+            {
+                int orderShift = (sid - 1) % n;
+    
+                for (int s = 0; s < n; s++)
+                {
+                    int groupIdx = (s + orderShift) % n;
+                    int listIdx  = ((sid - 1) + s) % listCount;
+    
+                    var groupProp = _sessionGroups.GetArrayElementAtIndex(groupIdx);
+                    string groupName = groupProp.FindPropertyRelative("groupName").stringValue;
+    
+                    var objsProp = groupProp.FindPropertyRelative("anomalyObjects");
+                    var ids = new List<string>();
+                    for (int a = 0; a < objsProp.arraySize; a++)
+                    {
+                        var def = objsProp.GetArrayElementAtIndex(a).objectReferenceValue as AnomalyDefinition;
+                        if (def != null) ids.Add(def.id);
+                    }
+    
+                    int stimulusCount = 0;
+                    if (listIdx < seq.stimuliSequences?.Count)
+                        stimulusCount = seq.stimuliSequences[listIdx].stimulus.Count;
+    
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    EditorGUILayout.TextField($"{groupName}   |   List {listIdx + 1}   |   {stimulusCount} stimulus");
+                    if (ids.Count > 0)
+                        EditorGUILayout.TextField(string.Join(", ", ids));
+                    EditorGUILayout.EndVertical();
+                }
+            }
+            else if (n > 0 && listCount > 0)
+            {
+                EditorGUILayout.HelpBox("Enter a valid Subject ID to see the resolved sequence.", MessageType.Info);
+            }
+    
+            GUI.enabled = true;
+    
+            // ── State Configuration ─────────────────────────────────────
+            EditorGUILayout.Space(10);
+            _stateConfigFoldout = EditorGUILayout.Foldout(
+                _stateConfigFoldout, "State Configuration",
+                true, EditorStyles.foldoutHeader);
+    
+            if (_stateConfigFoldout)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(_gsm,              new GUIContent("Game State Manager"));
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("State References", EditorStyles.miniBoldLabel);
+                EditorGUILayout.PropertyField(_stateExperimentStart, new GUIContent("Experiment Start"));
+                EditorGUILayout.PropertyField(_stateTrialStart,      new GUIContent("Trial Start"));
+                EditorGUILayout.PropertyField(_stateTrialEnd,        new GUIContent("Trial End"));
+                EditorGUILayout.PropertyField(_stateIdle,  new GUIContent("Idle"));
+                EditorGUILayout.PropertyField(_stateExperimentEnd,   new GUIContent("Experiment End"));
+                EditorGUI.indentLevel--;
+            }
+    
+            // ── Tutorial Session ────────────────────────────────────────
+            EditorGUILayout.Space(10);
+            _tutorialFoldout = EditorGUILayout.Foldout(
+                _tutorialFoldout, "Tutorial Session",
+                true, EditorStyles.foldoutHeader);
+    
+            if (_tutorialFoldout)
+            {
+                EditorGUI.indentLevel++;
+    
+                var tutNameProp     = _tutorialGroup.FindPropertyRelative("groupName");
+                var tutObjsProp     = _tutorialGroup.FindPropertyRelative("anomalyObjects");
+                var tutStimulusProp = _tutorialStimuliSequence.FindPropertyRelative("stimulus");
+                int tac             = tutObjsProp.arraySize;
+    
+                // ── Block 1: Anomaly Definitions ────────────────────────
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+    
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField($"Anomaly Definitions  ({tac})", EditorStyles.miniBoldLabel);
+                if (GUILayout.Button("+", GUILayout.Width(26)))
+                {
+                    tutObjsProp.arraySize++;
+                    tac = tutObjsProp.arraySize;
+                }
+                if (tac > 0 && GUILayout.Button("−", GUILayout.Width(26)))
+                {
+                    tutObjsProp.arraySize--;
+                    tac = tutObjsProp.arraySize;
+                }
+                EditorGUILayout.EndHorizontal();
+    
+                EditorGUI.indentLevel++;
+                if (tac == 0)
+                {
+                    EditorGUILayout.LabelField("(no anomaly slots — noise only)", EditorStyles.miniLabel);
+                }
+                else
+                {
+                    for (int a = 0; a < tac; a++)
+                    {
+                        var elemProp = tutObjsProp.GetArrayElementAtIndex(a);
+                        var current  = elemProp.objectReferenceValue as AnomalyDefinition;
+                        string hint  = current != null ? $"  [{current.id}]" : "";
+    
+                        Rect rect = EditorGUILayout.GetControlRect();
+                        EditorGUI.BeginChangeCheck();
+                        var picked = (AnomalyDefinition)EditorGUI.ObjectField(
+                            rect, new GUIContent($"A{a + 1}{hint}"),
+                            current, typeof(AnomalyDefinition), false);
+                        if (EditorGUI.EndChangeCheck())
+                            elemProp.objectReferenceValue = picked;
+                    }
+                }
+                EditorGUI.indentLevel--;
+    
+                EditorGUILayout.EndVertical();
+                EditorGUILayout.Space(2);
+    
+                // ── Block 2: Stimuli Sequence ────────────────────────────
+                tac = tutObjsProp.arraySize;   // re-read after block 1 mutations
+                string[] popupOptionsTut = new string[tac + 1];
+                popupOptionsTut[0] = "N";
+                for (int i = 0; i < tac; i++) popupOptionsTut[i + 1] = $"A{i + 1}";
+    
+                string tutStats = BuildStats(seq.tutorialStimuliSequence, tac);
+    
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+    
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField($"Stimuli Sequence  ({tutStimulusProp.arraySize})   —   {tutStats}", EditorStyles.miniBoldLabel);
+                if (GUILayout.Button("+", GUILayout.Width(26))) tutStimulusProp.arraySize++;
+                if (tutStimulusProp.arraySize > 0 && GUILayout.Button("−", GUILayout.Width(26))) tutStimulusProp.arraySize--;
+                EditorGUILayout.EndHorizontal();
+    
+                EditorGUI.indentLevel++;
+                for (int t = 0; t < tutStimulusProp.arraySize; t++)
+                {
+                    var entryProp = tutStimulusProp.GetArrayElementAtIndex(t);
+                    int current   = Mathf.Clamp(entryProp.intValue, 0, tac);
+    
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField($"  {t + 1:D2}", GUILayout.Width(36));
+                    int chosen = EditorGUILayout.Popup(current, popupOptionsTut);
+                    if (chosen != current) entryProp.intValue = chosen;
+                    EditorGUILayout.EndHorizontal();
+                }
+                EditorGUI.indentLevel--;
+    
+                EditorGUILayout.EndVertical();
+    
+                EditorGUI.indentLevel--;
+            }
+    
+            // ── Session Groups ──────────────────────────────────────────
+            EditorGUILayout.Space(10);
+            _groupsFoldout = EditorGUILayout.Foldout(
+                _groupsFoldout, $"Session Groups  ({_sessionGroups.arraySize})",
+                true, EditorStyles.foldoutHeader);
+    
+            if (_groupsFoldout)
+            {
+                EditorGUI.indentLevel++;
+    
+                // Anomaly count lives here — defines A1..An slots for all groups
+                EditorGUI.BeginChangeCheck();
+                EditorGUILayout.PropertyField(_anomalyCount, new GUIContent("Anomaly Count",
+                    "Number of anomaly variants per session. Defines A1..An slots in each group."));
+                bool countChanged = EditorGUI.EndChangeCheck();
+                string slotPreview = "N   " + string.Join("   ", Enumerable.Range(1, ac).Select(i => $"A{i}"));
+                EditorGUILayout.HelpBox($"Stimulus entry options:   {slotPreview}", MessageType.None);
+                if (countChanged)
+                {
+                    for (int g = 0; g < _sessionGroups.arraySize; g++)
+                        _sessionGroups.GetArrayElementAtIndex(g)
+                                      .FindPropertyRelative("anomalyObjects").arraySize = ac;
+                }
+                EditorGUILayout.Space(4);
+    
+                while (_groupExpanded.Count < _sessionGroups.arraySize) _groupExpanded.Add(true);
+                while (_groupExpanded.Count > _sessionGroups.arraySize) _groupExpanded.RemoveAt(_groupExpanded.Count - 1);
+    
+                for (int g = 0; g < _sessionGroups.arraySize; g++)
+                {
+                    var groupProp = _sessionGroups.GetArrayElementAtIndex(g);
+                    var nameProp  = groupProp.FindPropertyRelative("groupName");
+                    var objsProp  = groupProp.FindPropertyRelative("anomalyObjects");
+    
+                    if (objsProp.arraySize != ac) objsProp.arraySize = ac;
+    
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+    
+                    EditorGUILayout.BeginHorizontal();
+                    _groupExpanded[g] = EditorGUILayout.Foldout(
+                        _groupExpanded[g], $"Session {g + 1}  —  {nameProp.stringValue}", true);
+                    if (GUILayout.Button("✕", GUILayout.Width(22), GUILayout.Height(18)))
+                    {
+                        _sessionGroups.DeleteArrayElementAtIndex(g);
+                        _groupExpanded.RemoveAt(g);
+                        serializedObject.ApplyModifiedProperties();
+                        break;
+                    }
+                    EditorGUILayout.EndHorizontal();
+    
+                    if (_groupExpanded[g])
+                    {
+                        EditorGUI.indentLevel++;
+                        EditorGUI.BeginChangeCheck();
+                        string newName = EditorGUILayout.TextField(new GUIContent("Session Name"), nameProp.stringValue);
+                        if (EditorGUI.EndChangeCheck())
+                            nameProp.stringValue = newName;
+                        EditorGUILayout.LabelField("Anomaly Definitions", EditorStyles.miniBoldLabel);
+                        EditorGUI.indentLevel++;
+    
+                        for (int a = 0; a < ac; a++)
+                        {
+                            var elemProp = objsProp.GetArrayElementAtIndex(a);
+                            var current  = elemProp.objectReferenceValue as AnomalyDefinition;
+                            string hint  = current != null ? $"  [{current.id}]" : "";
+    
+                            Rect rect = EditorGUILayout.GetControlRect();
+                            EditorGUI.BeginChangeCheck();
+                            var picked = (AnomalyDefinition)EditorGUI.ObjectField(
+                                rect,
+                                new GUIContent($"A{a + 1}{hint}"),
+                                current,
+                                typeof(AnomalyDefinition),
+                                false);
+                            if (EditorGUI.EndChangeCheck())
+                                elemProp.objectReferenceValue = picked;
+                        }
+    
+                        EditorGUI.indentLevel--;
+                        EditorGUI.indentLevel--;
+                    }
+    
+                    EditorGUILayout.EndVertical();
+                    EditorGUILayout.Space(2);
+                }
+    
+                if (GUILayout.Button("+ Add Session Group", GUILayout.Height(24)))
+                {
+                    _sessionGroups.arraySize++;
+                    var ng = _sessionGroups.GetArrayElementAtIndex(_sessionGroups.arraySize - 1);
+                    ng.FindPropertyRelative("groupName").stringValue      = $"Session {_sessionGroups.arraySize}";
+                    ng.FindPropertyRelative("anomalyObjects").arraySize   = ac;
+                    _groupExpanded.Add(true);
+                }
+    
+                EditorGUI.indentLevel--;
+            }
+    
+            // ── Stimuli Sequences ─────────────────────────────────────────────
+            EditorGUILayout.Space(10);
+            _listsFoldout = EditorGUILayout.Foldout(
+                _listsFoldout, $"Stimuli Sequences  ({_stimuliSequences.arraySize})",
+                true, EditorStyles.foldoutHeader);
+    
+            if (_listsFoldout)
+            {
+                EditorGUI.indentLevel++;
+    
+                string[] popupOptions = new string[ac + 1];
+                popupOptions[0] = "N";
+                for (int i = 0; i < ac; i++) popupOptions[i + 1] = $"A{i + 1}";
+    
+                while (_listExpanded.Count < _stimuliSequences.arraySize) _listExpanded.Add(true);
+                while (_listExpanded.Count > _stimuliSequences.arraySize) _listExpanded.RemoveAt(_listExpanded.Count - 1);
+    
+                for (int l = 0; l < _stimuliSequences.arraySize; l++)
+                {
+                    var listProp     = _stimuliSequences.GetArrayElementAtIndex(l);
+                    var stimulusProp = listProp.FindPropertyRelative("stimulus");
+    
+                    StimuliSequence tl = (seq.stimuliSequences != null && l < seq.stimuliSequences.Count) ? seq.stimuliSequences[l] : null;
+                    string stats = BuildStats(tl, ac);
+    
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+    
+                    EditorGUILayout.BeginHorizontal();
+                    _listExpanded[l] = EditorGUILayout.Foldout(
+                        _listExpanded[l], $"Sequence {l + 1}   —   {stats}", true);
+                    if (GUILayout.Button("✕", GUILayout.Width(22), GUILayout.Height(18)))
+                    {
+                        _stimuliSequences.DeleteArrayElementAtIndex(l);
+                        _listExpanded.RemoveAt(l);
+                        serializedObject.ApplyModifiedProperties();
+                        break;
+                    }
+                    EditorGUILayout.EndHorizontal();
+    
+                    if (_listExpanded[l])
+                    {
+                        EditorGUI.indentLevel++;
+    
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.LabelField($"Stimulus  ({stimulusProp.arraySize})", GUILayout.Width(110));
+                        if (GUILayout.Button("+", GUILayout.Width(26))) stimulusProp.arraySize++;
+                        if (stimulusProp.arraySize > 0 && GUILayout.Button("−", GUILayout.Width(26))) stimulusProp.arraySize--;
+                        EditorGUILayout.EndHorizontal();
+    
+                        for (int t = 0; t < stimulusProp.arraySize; t++)
+                        {
+                            var entryProp = stimulusProp.GetArrayElementAtIndex(t);
+                            int current   = Mathf.Clamp(entryProp.intValue, 0, ac);
+    
+                            EditorGUILayout.BeginHorizontal();
+                            EditorGUILayout.LabelField($"  {t + 1:D2}", GUILayout.Width(36));
+                            int chosen = EditorGUILayout.Popup(current, popupOptions);
+                            if (chosen != current) entryProp.intValue = chosen;
+                            EditorGUILayout.EndHorizontal();
+                        }
+    
+                        EditorGUI.indentLevel--;
+                    }
+    
+                    EditorGUILayout.EndVertical();
+                    EditorGUILayout.Space(2);
+                }
+    
+                if (GUILayout.Button("+ Add Stimuli Sequence", GUILayout.Height(24)))
+                    _stimuliSequences.arraySize++;
+    
+                EditorGUI.indentLevel--;
+            }
+    
+            serializedObject.ApplyModifiedProperties();
+        }
+    
+        private static string BuildStats(StimuliSequence tl, int ac)
+        {
+            if (tl == null || tl.stimulus.Count == 0) return "empty";
+            var s = tl.GetStats(ac);
+            return $"{tl.stimulus.Count} stimulus  |  " +
+                   string.Join("  ", s.Select(kv => $"{kv.Key}×{kv.Value}"));
+        }
+    
+        private static void SectionLabel(string text)
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField(text, EditorStyles.boldLabel);
+        }
+    }
+} // namespace MetaFrame.State
+#endif

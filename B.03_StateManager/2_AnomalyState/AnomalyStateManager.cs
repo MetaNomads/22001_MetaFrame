@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.Events;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using static MetaFrame.State.GameStateManager;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -27,61 +27,65 @@ namespace MetaFrame.State
 
     // ── Script Trigger Entry ──────────────────────────────────────────────────────
 
-    /// <summary>
-    /// One slot in a binding's Custom Trigger list.
-    /// Each entry has its own AND / OR / Disabled mode.
-    /// </summary>
     [System.Serializable]
-    public class ScriptTriggerEntry
+    public class ConditionEntry
     {
-        [Tooltip("Disabled — ignored.\nAND — this trigger must pass.\nOR  — this trigger passing alone is enough.")]
+        [Tooltip("Disabled — ignored.\nAND — this condition must pass.\nOR  — this condition passing alone is enough.")]
         public ConditionMode mode = ConditionMode.AND;
 
-        [Tooltip("Drag any MonoBehaviour that implements IAnomalyTrigger.")]
+        [Tooltip("Drag any MonoBehaviour that implements IAnomalyCondition.")]
         public MonoBehaviour script;
     }
 
-    // ── Event Binding ─────────────────────────────────────────────────────────────
+    // ── Anomaly Trigger ───────────────────────────────────────────────────────────
 
     [System.Serializable]
-    public class AnomalyEventBinding
+    public class AnomalyTrigger
     {
         [Tooltip("Optional label. Auto-generated from active conditions if empty.")]
-        public string bindingName = "";
+        public string triggerName = "";
 
-        [Tooltip("Disabled — ignored.\nAND — must pass.\nOR  — passing alone fires the binding.")]
-        public ConditionMode levelStateMode = ConditionMode.AND;
-        public LevelState levelStates;
+        // ── Game State condition ───────────────────────────────────
+        [Tooltip("Disabled — ignored.\nAND — must pass.\nOR  — passing alone fires the trigger.")]
+        public ConditionMode gameStateMode = ConditionMode.AND;
 
-        [Tooltip("Disabled — ignored.\nAND — must pass.\nOR  — passing alone fires the binding.")]
+        [Tooltip("The GameStateManager state index that satisfies this condition.")]
+        [StateIndex] public int stateIndex;
+
+        // ── Anomaly State condition ────────────────────────────────
+        [Tooltip("Disabled — ignored.\nAND — must pass.\nOR  — passing alone fires the trigger.")]
         public ConditionMode anomalyStateMode = ConditionMode.AND;
         public AnomalyState anomalyStates;
 
-        [Tooltip("Disabled — ignored.\nAND — trigger group must pass.\nOR  — trigger group passing alone fires the binding.")]
-        public ConditionMode triggerMode = ConditionMode.Disabled;
+        // ── Script Condition group ─────────────────────────────────
+        [Tooltip("Disabled — ignored.\nAND — condition group must pass.\nOR  — condition group passing alone fires the trigger.")]
+        public ConditionMode conditionMode = ConditionMode.Disabled;
 
-        [Tooltip("Each trigger entry carries its own AND / OR / Disabled mode.")]
-        public List<ScriptTriggerEntry> triggerScripts = new();
+        [Tooltip("Each condition entry carries its own AND / OR / Disabled mode.")]
+        public List<ConditionEntry> conditions = new();
 
         public UnityEvent onEnter;
         public UnityEvent onExit;
 
         // ── Evaluation ────────────────────────────────────────────
 
-        public bool Evaluate(LevelState levelState, AnomalyState anomalyState)
+        /// <summary>
+        /// Evaluates this binding against the current game state index and anomaly state.
+        /// </summary>
+        public bool Evaluate(int currentStateIndex, AnomalyState anomalyState)
         {
-            if (levelStateMode  == ConditionMode.Disabled &&
+            if (gameStateMode    == ConditionMode.Disabled &&
                 anomalyStateMode == ConditionMode.Disabled &&
-                triggerMode      == ConditionMode.Disabled) return true;
+                conditionMode    == ConditionMode.Disabled) return true;
 
-            bool levelResult  = (levelStates   & levelState)   != 0;
-            bool anomalyResult= (anomalyStates & anomalyState) != 0;
-            bool triggerResult= EvaluateTriggerGroup();
+            bool stateResult     = currentStateIndex == stateIndex;
+            bool anomalyResult   = (anomalyStates & anomalyState) != 0;
+            bool conditionResult = EvaluateConditionGroup();
 
             return EvaluateGroup(
-                (levelStateMode,  levelResult),
+                (gameStateMode,    stateResult),
                 (anomalyStateMode, anomalyResult),
-                (triggerMode,     triggerResult));
+                (conditionMode,    conditionResult));
         }
 
         private static bool EvaluateGroup(params (ConditionMode mode, bool result)[] entries)
@@ -102,15 +106,15 @@ namespace MetaFrame.State
             return !orPresent || orSatisfied;
         }
 
-        private bool EvaluateTriggerGroup()
+        private bool EvaluateConditionGroup()
         {
-            if (triggerScripts == null || triggerScripts.Count == 0) return true;
+            if (conditions == null || conditions.Count == 0) return true;
 
             var entries = new List<(ConditionMode mode, bool result)>();
-            foreach (var entry in triggerScripts)
+            foreach (var entry in conditions)
             {
                 if (entry == null || entry.mode == ConditionMode.Disabled) continue;
-                bool r = entry.script is IAnomalyTrigger t && t.Evaluate();
+                bool r = entry.script is IAnomalyCondition c && c.Evaluate();
                 entries.Add((entry.mode, r));
             }
 
@@ -123,20 +127,27 @@ namespace MetaFrame.State
             var andParts = new List<string>();
             var orParts  = new List<string>();
 
-            if (levelStateMode   == ConditionMode.AND) andParts.Add(((LevelState)levelStates).ToString());
-            if (levelStateMode   == ConditionMode.OR)  orParts.Add(((LevelState)levelStates).ToString());
-            if (anomalyStateMode == ConditionMode.AND) andParts.Add(((AnomalyState)anomalyStates).ToString());
-            if (anomalyStateMode == ConditionMode.OR)  orParts.Add(((AnomalyState)anomalyStates).ToString());
+            var gsm = GameStateManager.instance;
 
-            int active = triggerScripts?.FindAll(e => e?.mode != ConditionMode.Disabled).Count ?? 0;
-            if (triggerMode == ConditionMode.AND) andParts.Add($"{active} trigger(s)");
-            if (triggerMode == ConditionMode.OR)  orParts.Add($"{active} trigger(s)");
+            if (gameStateMode == ConditionMode.AND || gameStateMode == ConditionMode.OR)
+            {
+                string stateLabel = gsm != null ? gsm.StateName(stateIndex) : $"[{stateIndex}]";
+                if (gameStateMode == ConditionMode.AND) andParts.Add(stateLabel);
+                else                                     orParts.Add(stateLabel);
+            }
+
+            if (anomalyStateMode == ConditionMode.AND) andParts.Add(anomalyStates.ToString());
+            if (anomalyStateMode == ConditionMode.OR)  orParts.Add(anomalyStates.ToString());
+
+            int active = conditions?.FindAll(e => e?.mode != ConditionMode.Disabled).Count ?? 0;
+            if (conditionMode == ConditionMode.AND) andParts.Add($"{active} condition(s)");
+            if (conditionMode == ConditionMode.OR)  orParts.Add($"{active} condition(s)");
 
             if (andParts.Count == 0 && orParts.Count == 0) return "(always fires)";
 
             var segments = new List<string>();
             if (andParts.Count > 0) segments.Add(string.Join(" AND ", andParts));
-            if (orParts.Count  > 0) segments.Add(string.Join(" OR ",  orParts));
+            if (orParts.Count  > 0) segments.Add(string.Join(" OR  ", orParts));
             return string.Join("  |  ", segments);
         }
     }
@@ -147,340 +158,328 @@ namespace MetaFrame.State
     {
         [SerializeField] protected AnomalyDefinition anomalyToTrigger;
 
-        [Header("Event Bindings")]
-        [SerializeField] private List<AnomalyEventBinding> eventBindings = new();
+        [Tooltip("If enabled, any state change will cancel ongoing actions and proceed immediately.\n" +
+                 "If disabled, state change requests are ignored while actions are still running.")]
+        [SerializeField] private bool cancelActionsOnStateChange = true;
 
-        private AnomalyState _currentAnomalyState = AnomalyState.Disabled;
-        private LevelState   _currentLevelState;
-        private int          _pendingActions = 0;
-        private readonly HashSet<AnomalyAction> _activeActions = new();
-        private readonly HashSet<int> _enteredBindings = new(); // indices of currently-entered bindings
+        [Header("Triggers")]
+        [SerializeField] private List<AnomalyTrigger> triggers = new();
+
+        private AnomalyState          _currentAnomalyState = AnomalyState.Disabled;
+        private int                   _currentStateIndex   = -1;
+        private int                   _pendingActions;
+        private readonly HashSet<AnomalyAction> _activeActions   = new();
+        private readonly HashSet<int>           _enteredTriggers = new();
 
         public AnomalyState      CurrentAnomalyState => _currentAnomalyState;
-        public LevelState        CurrentLevelState   => _currentLevelState;
+        public int               CurrentStateIndex   => _currentStateIndex;
         public AnomalyDefinition AnomalyToTrigger    => anomalyToTrigger;
         public int               PendingActions      => _pendingActions;
+
+        /// <summary>Fires whenever an ASM is enabled in the scene. Recorder uses this to subscribe.</summary>
+        public static event Action<AnomalyStateManager> OnRegistered;
+
+        /// <summary>Fires whenever an ASM is disabled or destroyed. Recorder uses this to unsubscribe.</summary>
+        public static event Action<AnomalyStateManager> OnUnregistered;
+
+        /// <summary>Fires whenever the anomaly state changes. Passes sender, from/to states, and exact timestamp.</summary>
+        public event Action<AnomalyStateManager, AnomalyState, AnomalyState, DateTime> OnAnomalyStateChanged;
 
         // ── Lifecycle ──────────────────────────────────────────────
 
         private void Start()
         {
             var gsm = GameStateManager.instance;
-            if (gsm == null) { Debug.LogError("[AnomalyStateManager] No GameStateManager found!"); return; }
-            gsm.GameStateTrigger  += OnGameStateTrigger;
-            gsm.LevelStateTrigger += OnLevelStateUpdated;
+            if (gsm == null) { Debug.LogError("[ASM] No GameStateManager found!"); return; }
+
+            gsm.OnStateChanged += OnStateChanged;
+            ExperimentSequencer.OnTrialBegan += ActivateAnomaly;
             SetupObjectAtStart();
+
+            OnRegistered?.Invoke(this);
         }
 
         private void OnDestroy()
         {
             var gsm = GameStateManager.instance;
-            if (gsm == null) return;
-            gsm.GameStateTrigger  -= OnGameStateTrigger;
-            gsm.LevelStateTrigger -= OnLevelStateUpdated;
+            if (gsm != null)
+                gsm.OnStateChanged -= OnStateChanged;
+
+            ExperimentSequencer.OnTrialBegan -= ActivateAnomaly;
+            OnUnregistered?.Invoke(this);
         }
 
-        // ── GSM Callbacks ──────────────────────────────────────────
+        // ── Sequencer Callback ─────────────────────────────────────────────────
 
-        private void OnGameStateTrigger(SessionData? sessionData, int trialNumber, TrialData trialData)
+        private void ActivateAnomaly(AnomalyDefinition activeAnomaly)
         {
-            _currentLevelState = 0;
             _pendingActions    = 0;
             _activeActions.Clear();
-            _enteredBindings.Clear();
-            bool isSelected = trialData.anomalyDefinition != null
-                           && trialData.anomalyDefinition == anomalyToTrigger;
+            _enteredTriggers.Clear();
+
+            bool isSelected = activeAnomaly != null && activeAnomaly == anomalyToTrigger;
             SetAnomalyState(isSelected ? AnomalyState.Active : AnomalyState.Disabled);
         }
 
-        private void OnLevelStateUpdated(SessionData? sessionData, int trialNumber, LevelState levelState)
+        private void OnStateChanged(int fromIndex, int toIndex, DateTime _)
         {
-            _currentLevelState = levelState;
-            CheckAndFireBindings();
+            _currentStateIndex = toIndex;
+            EvaluateTriggers();
         }
 
         // ── State Machine ──────────────────────────────────────────
 
         private void SetAnomalyState(AnomalyState newState)
         {
+            if (_pendingActions > 0)
+            {
+                if (cancelActionsOnStateChange)
+                    CancelAllActions();
+                else
+                {
+                    Debug.LogWarning($"[ASM] State change to {newState} ignored — {_pendingActions} action(s) still running on '{gameObject.name}'.");
+                    return;
+                }
+            }
+
+            AnomalyState prev    = _currentAnomalyState;
             _currentAnomalyState = newState;
-            CheckAndFireBindings();
+            OnAnomalyStateChanged?.Invoke(this, prev, newState, DateTime.Now);
+            EvaluateTriggers();
         }
 
-        private void CheckAndFireBindings()
+        private void EvaluateTriggers()
         {
-            bool anyEnteredOnActive = false;
-
-            for (int i = 0; i < eventBindings.Count; i++)
+            for (int i = 0; i < triggers.Count; i++)
             {
-                var binding    = eventBindings[i];
-                bool passed    = binding.Evaluate(_currentLevelState, _currentAnomalyState);
-                bool wasEntered = _enteredBindings.Contains(i);
+                var  trigger    = triggers[i];
+                bool passes     = trigger.Evaluate(_currentStateIndex, _currentAnomalyState);
+                bool wasActive  = _enteredTriggers.Contains(i);
 
-                if (passed && !wasEntered)
+                if (passes && !wasActive)
                 {
-                    _enteredBindings.Add(i);
-                    binding.onEnter?.Invoke();
-
-                    bool targetsActive = binding.anomalyStateMode == ConditionMode.Disabled
-                                      || (binding.anomalyStates & AnomalyState.Active) != 0;
-                    if (targetsActive) anyEnteredOnActive = true;
+                    _enteredTriggers.Add(i);
+                    trigger.onEnter?.Invoke();
                 }
-                else if (!passed && wasEntered)
+                else if (!passes && wasActive)
                 {
-                    _enteredBindings.Remove(i);
-                    binding.onExit?.Invoke();
-                }
-            }
-
-            if (anyEnteredOnActive && _currentAnomalyState == AnomalyState.Active)
-            {
-                _currentAnomalyState = AnomalyState.Triggered;
-
-                if (_pendingActions <= 0)
-                {
-                    _pendingActions = 0;
-                    _currentAnomalyState = AnomalyState.Completed;
-                    OnAnomalyCompleted();
+                    _enteredTriggers.Remove(i);
+                    trigger.onExit?.Invoke();
                 }
             }
         }
 
-        // ── Public API ─────────────────────────────────────────────
+        // ── Action Tracking ────────────────────────────────────────
 
-        public void RegisterActiveAction(AnomalyAction action)   => _activeActions.Add(action);
-        public void UnregisterActiveAction(AnomalyAction action) => _activeActions.Remove(action);
-
-        public void RegisterPendingAction()
+        /// <summary>Register an async action before Execute(). One-shots should not call this.</summary>
+        public void RegisterAction(AnomalyAction action)
         {
-            _pendingActions++;
-            Debug.Log($"[AnomalyStateManager] '{name}' pending: {_pendingActions}");
+            if (_activeActions.Add(action))
+                _pendingActions++;
         }
 
-        public void SignalActionComplete()
+        /// <summary>Signal that an async action has finished.</summary>
+        public void CompleteAnomaly(AnomalyAction action)
         {
-            if (_currentAnomalyState != AnomalyState.Triggered) return;
-
+            if (!_activeActions.Remove(action)) return;
             _pendingActions = Mathf.Max(0, _pendingActions - 1);
-            Debug.Log($"[AnomalyStateManager] '{name}' pending: {_pendingActions}");
-
-            if (_pendingActions > 0) return;
-
-            _currentAnomalyState = AnomalyState.Completed;
-            OnAnomalyCompleted();
-            Debug.Log($"[AnomalyStateManager] '{name}' → Completed.");
+            if (_pendingActions == 0 && _currentAnomalyState == AnomalyState.Triggered)
+                SetAnomalyState(AnomalyState.Completed);
         }
 
-        public void CancelAnomaly()
+        /// <summary>Cancel all running async actions.</summary>
+        public void CancelAllActions()
         {
-            // Exit all currently entered bindings
-            foreach (int i in _enteredBindings)
-                if (i < eventBindings.Count)
-                    eventBindings[i].onExit?.Invoke();
-            _enteredBindings.Clear();
-
             foreach (var action in _activeActions)
-                action?.CancelAnomalyAction();
+                action.CancelAnomalyAction();
             _activeActions.Clear();
-
-            OnAnomalyCancelled();
-            _currentAnomalyState = AnomalyState.Disabled;
-            _currentLevelState   = 0;
-            _pendingActions      = 0;
+            _pendingActions = 0;
         }
 
-        public void DEBUG_InvokeEnter(int index)
+        // ── Anomaly Control ────────────────────────────────────────
+
+        public void TriggerAnomaly()
         {
-            if (index >= 0 && index < eventBindings.Count)
-                eventBindings[index].onEnter?.Invoke();
+            if (_currentAnomalyState != AnomalyState.Active) return;
+            SetAnomalyState(AnomalyState.Triggered);
         }
 
-        public void DEBUG_InvokeExit(int index)
-        {
-            if (index >= 0 && index < eventBindings.Count)
-                eventBindings[index].onExit?.Invoke();
-        }
+        /// <summary>Editor debug only — bypass guards and force any anomaly state directly.</summary>
+        public void ForceAnomalyState(AnomalyState state) => SetAnomalyState(state);
+
+        // ── Virtual Hooks ──────────────────────────────────────────
 
         protected virtual void SetupObjectAtStart() { }
-        protected virtual void OnAnomalyCancelled() { }
-        protected virtual void OnAnomalyCompleted() { }
+
+        // ── Getters ────────────────────────────────────────────────
+
+        public string GetCurrentAnomalyName() =>
+            anomalyToTrigger != null ? anomalyToTrigger.ToString() : "NONE";
     }
 
     // ── Editor ────────────────────────────────────────────────────────────────────
 
 #if UNITY_EDITOR
-    [CustomEditor(typeof(AnomalyStateManager), true)]
+    [CustomEditor(typeof(AnomalyStateManager), editorForChildClasses: true)]
     public class AnomalyStateManagerEditor : Editor
     {
         private SerializedProperty _anomalyToTrigger;
-        private SerializedProperty _eventBindings;
-        private readonly List<bool> _foldouts = new();
+        private SerializedProperty _cancelActionsOnStateChange;
+        private SerializedProperty _triggers;
+        private List<bool> _foldouts = new();
 
         private void OnEnable()
         {
-            _anomalyToTrigger = serializedObject.FindProperty("anomalyToTrigger");
-            _eventBindings    = serializedObject.FindProperty("eventBindings");
+            _anomalyToTrigger           = serializedObject.FindProperty("anomalyToTrigger");
+            _cancelActionsOnStateChange = serializedObject.FindProperty("cancelActionsOnStateChange");
+            _triggers                   = serializedObject.FindProperty("triggers");
         }
 
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
 
-            EditorGUILayout.Space();
-            EditorGUILayout.PropertyField(_anomalyToTrigger, new GUIContent("Anomaly To Trigger"));
-            DrawPropertiesExcluding(serializedObject, "m_Script", "anomalyToTrigger", "eventBindings");
-            DrawBindingList();
+            DrawPropertiesExcluding(serializedObject, "m_Script", "anomalyToTrigger", "cancelActionsOnStateChange", "triggers");
+            EditorGUILayout.PropertyField(_anomalyToTrigger);
 
-            if (Application.isPlaying)
+            var cancelProp = _cancelActionsOnStateChange ?? serializedObject.FindProperty("cancelActionsOnStateChange");
+            if (cancelProp != null)
+                EditorGUILayout.PropertyField(cancelProp, new GUIContent("Cancel Actions on State Change"));
+            else
+                Debug.LogError("[ASM Editor] cancelActionsOnStateChange property not found.");
+
+            // ── Debug: Force Anomaly State ─────────────────────────
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Debug", EditorStyles.miniBoldLabel);
+
+            bool inPlayMode = Application.isPlaying;
+            var  asm        = (AnomalyStateManager)target;
+
+            GUI.enabled = inPlayMode;
+            EditorGUILayout.BeginHorizontal();
+
+            var states = new (string label, AnomalyState state, Color color)[]
             {
-                EditorGUILayout.Space();
-                DrawSectionBlock("Runtime State", "Read-only.", () =>
-                {
-                    var r = (AnomalyStateManager)target;
-                    GUI.enabled = false;
-                    EditorGUILayout.EnumPopup("Level State",    r.CurrentLevelState);
-                    EditorGUILayout.EnumPopup("Anomaly State",  r.CurrentAnomalyState);
-                    EditorGUILayout.IntField("Pending Actions", r.PendingActions);
-                    GUI.enabled = true;
-                    EditorGUILayout.Space(2);
-                    if (GUILayout.Button("SignalActionComplete()")) r.SignalActionComplete();
-                    var prev = GUI.color;
-                    GUI.color = new Color(1f, 0.6f, 0.4f);
-                    if (GUILayout.Button("CancelAnomaly()")) r.CancelAnomaly();
-                    GUI.color = prev;
-                });
+                ("Disabled",  AnomalyState.Disabled,  new Color(0.55f, 0.55f, 0.55f)),
+                ("Active",    AnomalyState.Active,    new Color(0.40f, 0.75f, 1.00f)),
+                ("Triggered", AnomalyState.Triggered, new Color(1.00f, 0.82f, 0.30f)),
+                ("Completed", AnomalyState.Completed, new Color(0.50f, 1.00f, 0.60f)),
+            };
+
+            foreach (var (label, state, color) in states)
+            {
+                bool isCurrent = inPlayMode && asm.CurrentAnomalyState == state;
+                GUI.color = isCurrent ? color : new Color(color.r, color.g, color.b, 0.45f);
+                if (GUILayout.Button(label, GUILayout.Height(22)))
+                    asm.ForceAnomalyState(state);
             }
+
+            GUI.color   = Color.white;
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
+
+            if (!inPlayMode)
+                EditorGUILayout.HelpBox("Enter Play Mode to force states.", MessageType.None);
+
+            EditorGUILayout.Space(8);
+            EditorGUILayout.LabelField("Triggers", EditorStyles.boldLabel);
+
+            while (_foldouts.Count < _triggers.arraySize) _foldouts.Add(true);
+            while (_foldouts.Count > _triggers.arraySize) _foldouts.RemoveAt(_foldouts.Count - 1);
+
+            for (int i = 0; i < _triggers.arraySize; i++)
+                DrawBinding(i);
+
+            EditorGUILayout.Space(2);
+            GUI.color = new Color(0.4f, 0.9f, 0.5f);
+            if (GUILayout.Button("+ Add Trigger"))
+            {
+                _triggers.InsertArrayElementAtIndex(_triggers.arraySize);
+                _foldouts.Add(true);
+            }
+            GUI.color = Color.white;
 
             serializedObject.ApplyModifiedProperties();
         }
 
-        // ── Binding List ───────────────────────────────────────────
+        // ── Binding Row ────────────────────────────────────────────
 
-        private void DrawBindingList()
+        private void DrawBinding(int i)
         {
-            while (_foldouts.Count < _eventBindings.arraySize) _foldouts.Add(true);
+            var binding      = _triggers.GetArrayElementAtIndex(i);
+            var nameProp     = binding.FindPropertyRelative("triggerName");
+            var gsModeProp   = binding.FindPropertyRelative("gameStateMode");
+            var indexProp    = binding.FindPropertyRelative("stateIndex");
+            var aModeProp    = binding.FindPropertyRelative("anomalyStateMode");
+            var aStateProp   = binding.FindPropertyRelative("anomalyStates");
+            var tModeProp    = binding.FindPropertyRelative("conditionMode");
+            var trigsProp    = binding.FindPropertyRelative("conditions");
+            var onEnterProp  = binding.FindPropertyRelative("onEnter");
+            var onExitProp   = binding.FindPropertyRelative("onExit");
 
-            for (int i = 0; i < _eventBindings.arraySize; i++)
+            // Auto-label header
+            string stateLabel   = ResolveStateLabel(indexProp.intValue);
+            string autoLabel    = BuildAutoLabel(
+                (ConditionMode)gsModeProp.intValue, stateLabel,
+                (ConditionMode)aModeProp.intValue,  aStateProp,
+                (ConditionMode)tModeProp.intValue,  trigsProp);
+
+                string header = string.IsNullOrEmpty(nameProp.stringValue)
+                ? autoLabel
+                : $"{nameProp.stringValue}  —  {autoLabel}";
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+            // Foldout + remove button
+            EditorGUILayout.BeginHorizontal();
+            _foldouts[i] = EditorGUILayout.Foldout(_foldouts[i], header, true);
+            GUI.color = new Color(1f, 0.5f, 0.5f);
+            if (GUILayout.Button("✕", GUILayout.Width(22), GUILayout.Height(18)))
             {
-                var entry           = _eventBindings.GetArrayElementAtIndex(i);
-                var nameProp        = entry.FindPropertyRelative("bindingName");
-                var levelModeProp   = entry.FindPropertyRelative("levelStateMode");
-                var levelProp       = entry.FindPropertyRelative("levelStates");
-                var anomalyModeProp = entry.FindPropertyRelative("anomalyStateMode");
-                var anomalyProp     = entry.FindPropertyRelative("anomalyStates");
-                var triggerModeProp = entry.FindPropertyRelative("triggerMode");
-                var triggersProp    = entry.FindPropertyRelative("triggerScripts");
-                var onEnterProp     = entry.FindPropertyRelative("onEnter");
-                var onExitProp      = entry.FindPropertyRelative("onExit");
-
-                var lMode = (ConditionMode)levelModeProp.intValue;
-                var aMode = (ConditionMode)anomalyModeProp.intValue;
-                var tMode = (ConditionMode)triggerModeProp.intValue;
-
-                string autoLabel = BuildAutoLabel(lMode, levelProp, aMode, anomalyProp, tMode, triggersProp);
-                string header    = string.IsNullOrWhiteSpace(nameProp.stringValue) ? autoLabel : nameProp.stringValue;
-
-                EditorGUILayout.BeginVertical(GUI.skin.box);
-
-                // Foldout + delete
-                EditorGUILayout.BeginHorizontal();
-                _foldouts[i] = EditorGUILayout.Foldout(_foldouts[i], header, true, EditorStyles.foldoutHeader);
-                GUI.color = new Color(1f, 0.4f, 0.4f);
-                if (GUILayout.Button("✕", GUILayout.Width(24)))
-                {
-                    _eventBindings.DeleteArrayElementAtIndex(i);
-                    _foldouts.RemoveAt(i);
-                    serializedObject.ApplyModifiedProperties();
-                    GUIUtility.ExitGUI();
-                    return;
-                }
-                GUI.color = Color.white;
-                EditorGUILayout.EndHorizontal();
-
-                if (!_foldouts[i]) { EditorGUILayout.EndVertical(); EditorGUILayout.Space(2); continue; }
-
-                EditorGUI.indentLevel++;
-
-                // Name
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.PrefixLabel("Event Name");
-                nameProp.stringValue = EditorGUILayout.TextField(nameProp.stringValue);
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.Space(6);
-                EditorGUILayout.LabelField("Preconditions", EditorStyles.boldLabel);
-                EditorGUILayout.Space(2);
-
-                // Level State
-                DrawModeRow(levelModeProp, "Level State", () =>
-                {
-                    EditorGUI.BeginChangeCheck();
-                    var v = (LevelState)EditorGUILayout.EnumFlagsField(GUIContent.none, (LevelState)levelProp.intValue);
-                    if (EditorGUI.EndChangeCheck()) levelProp.intValue = (int)v;
-                });
-
-                // Anomaly State
-                DrawModeRow(anomalyModeProp, "Anomaly State", () =>
-                {
-                    EditorGUI.BeginChangeCheck();
-                    var v = (AnomalyState)EditorGUILayout.EnumFlagsField(GUIContent.none, (AnomalyState)anomalyProp.intValue);
-                    if (EditorGUI.EndChangeCheck()) anomalyProp.intValue = (int)v;
-                });
-
-                // Custom Trigger
-                DrawModeRow(triggerModeProp, "Custom Trigger", null,
-                    drawBelow: tMode != ConditionMode.Disabled
-                        ? () => DrawTriggerList(triggersProp)
-                        : (System.Action)null);
-
-                EditorGUILayout.Space(6);
-                EditorGUILayout.PropertyField(onEnterProp, new GUIContent("On Enter"));
-                EditorGUILayout.PropertyField(onExitProp,  new GUIContent("On Exit"));
-
-                // Debug buttons
-                GUI.enabled = Application.isPlaying;
-                EditorGUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                GUI.color = new Color(0.4f, 0.9f, 0.5f);
-                if (GUILayout.Button("▶  Enter", GUILayout.Width(90)))
-                {
-                    serializedObject.ApplyModifiedProperties();
-                    ((AnomalyStateManager)target).DEBUG_InvokeEnter(i);
-                }
-                GUI.color = new Color(1f, 0.7f, 0.4f);
-                if (GUILayout.Button("◀  Exit", GUILayout.Width(90)))
-                {
-                    serializedObject.ApplyModifiedProperties();
-                    ((AnomalyStateManager)target).DEBUG_InvokeExit(i);
-                }
-                GUI.color = Color.white;
-                GUILayout.FlexibleSpace();
-                EditorGUILayout.EndHorizontal();
-                GUI.enabled = true;
-
-                EditorGUI.indentLevel--;
-                EditorGUILayout.EndVertical();
-                EditorGUILayout.Space(2);
-            }
-
-            EditorGUILayout.Space(2);
-            GUI.color = new Color(0.4f, 0.9f, 0.5f);
-            if (GUILayout.Button("+ Add Binding"))
-            {
-                _eventBindings.InsertArrayElementAtIndex(_eventBindings.arraySize);
-                _foldouts.Add(true);
+                _triggers.DeleteArrayElementAtIndex(i);
+                _foldouts.RemoveAt(i);
+                serializedObject.ApplyModifiedProperties();
+                GUIUtility.ExitGUI();
             }
             GUI.color = Color.white;
+            EditorGUILayout.EndHorizontal();
+
+            if (_foldouts[i])
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(nameProp, new GUIContent("Trigger Name"));
+                EditorGUILayout.Space(4);
+
+                // Game State — mode + dropdown
+                DrawModeRow(gsModeProp, "Game State", () =>
+                    EditorGUILayout.PropertyField(indexProp, GUIContent.none));
+
+                // Anomaly State — mode + flags
+                DrawModeRow(aModeProp, "Anomaly State", () =>
+                    EditorGUILayout.PropertyField(aStateProp, GUIContent.none));
+
+                // Script Conditions — mode + list
+                DrawModeRow(tModeProp, "Script Conditions", null, () =>
+                    DrawTriggerList(trigsProp));
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.PropertyField(onEnterProp, new GUIContent("On Enter"));
+                EditorGUILayout.PropertyField(onExitProp,  new GUIContent("On Exit"));
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUILayout.EndVertical();
+            EditorGUILayout.Space(2);
         }
 
         // ── Trigger List ────────────────────────────────────────────
 
         private void DrawTriggerList(SerializedProperty triggersProp)
         {
-            const float MODE_W    = 120f;
-            const float WARN_W    = 18f;
-            const float REMOVE_W  = 20f;
-            const float GAP       = 4f;
+            const float MODE_W   = 120f;
+            const float WARN_W   = 18f;
+            const float REMOVE_W = 20f;
+            const float GAP      = 4f;
 
             EditorGUI.indentLevel++;
 
@@ -491,50 +490,38 @@ namespace MetaFrame.State
                 var scriptProp = entryProp.FindPropertyRelative("script");
                 var mode       = (ConditionMode)modeProp.intValue;
                 var mb         = scriptProp.objectReferenceValue as MonoBehaviour;
-                bool invalid   = mb != null && mb is not IAnomalyTrigger;
+                bool invalid   = mb != null && mb is not IAnomalyCondition;
 
-                // Use GetControlRect so we control the exact width
-                float totalW  = EditorGUIUtility.currentViewWidth
-                              - EditorGUI.indentLevel * 15f
-                              - 6f; // box padding
-                float warnW   = invalid ? WARN_W + GAP : 0f;
-                float fieldW  = totalW - MODE_W - GAP - warnW - REMOVE_W - GAP;
+                float totalW = EditorGUIUtility.currentViewWidth - EditorGUI.indentLevel * 15f - 6f;
+                float warnW  = invalid ? WARN_W + GAP : 0f;
+                float fieldW = totalW - MODE_W - GAP - warnW - REMOVE_W - GAP;
 
-                Rect rowRect  = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
-                float x       = rowRect.x;
-                float y       = rowRect.y;
-                float h       = rowRect.height;
+                Rect  row = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
+                float x = row.x, y = row.y, h = row.height;
 
-                // Mode dropdown
-                var modeRect = new Rect(x, y, MODE_W, h);
                 GUI.color = ModeColour(mode);
                 EditorGUI.BeginChangeCheck();
-                var newMode = (ConditionMode)EditorGUI.EnumPopup(modeRect, GUIContent.none, mode);
+                var newMode = (ConditionMode)EditorGUI.EnumPopup(new Rect(x, y, MODE_W, h), GUIContent.none, mode);
                 if (EditorGUI.EndChangeCheck()) modeProp.intValue = (int)newMode;
                 GUI.color = Color.white;
                 x += MODE_W + GAP;
 
-                // Script object field
                 GUI.enabled = mode != ConditionMode.Disabled;
                 if (invalid) GUI.color = new Color(1f, 0.75f, 0.4f);
                 EditorGUI.BeginChangeCheck();
-                var newObj = EditorGUI.ObjectField(
-                    new Rect(x, y, fieldW, h),
+                var newObj = EditorGUI.ObjectField(new Rect(x, y, fieldW, h),
                     GUIContent.none, scriptProp.objectReferenceValue, typeof(MonoBehaviour), true);
                 if (EditorGUI.EndChangeCheck()) scriptProp.objectReferenceValue = newObj;
-                GUI.color   = Color.white;
-                GUI.enabled = true;
+                GUI.color = Color.white; GUI.enabled = true;
                 x += fieldW + GAP;
 
-                // Warning icon
                 if (invalid)
                 {
                     EditorGUI.LabelField(new Rect(x, y, WARN_W, h),
-                        new GUIContent("⚠", "Must implement IAnomalyTrigger"));
+                        new GUIContent("⚠", "Must implement IAnomalyCondition"));
                     x += WARN_W + GAP;
                 }
 
-                // Remove button
                 GUI.color = new Color(1f, 0.5f, 0.5f);
                 if (GUI.Button(new Rect(x, y, REMOVE_W, h), "−"))
                 {
@@ -547,11 +534,9 @@ namespace MetaFrame.State
             }
 
             EditorGUILayout.Space(2);
-
-            // Neutral "Add Trigger" button — small, left-aligned, no colour
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("+ Add Trigger", GUILayout.Width(120)))
+            if (GUILayout.Button("+ Add Condition", GUILayout.Width(120)))
                 triggersProp.InsertArrayElementAtIndex(triggersProp.arraySize);
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
@@ -570,10 +555,10 @@ namespace MetaFrame.State
             var mode = (ConditionMode)modeProp.intValue;
 
             EditorGUILayout.BeginHorizontal();
-
             GUI.color = ModeColour(mode);
             EditorGUI.BeginChangeCheck();
-            var newMode = (ConditionMode)EditorGUILayout.EnumPopup(GUIContent.none, mode, GUILayout.Width(90));
+            var newMode = (ConditionMode)EditorGUILayout.EnumPopup(
+                GUIContent.none, mode, GUILayout.Width(90));
             if (EditorGUI.EndChangeCheck()) modeProp.intValue = (int)newMode;
             GUI.color = Color.white;
 
@@ -608,16 +593,33 @@ namespace MetaFrame.State
             _                 => new Color(0.55f, 0.55f, 0.55f),
         };
 
+        private static string ResolveStateLabel(int index)
+        {
+            var gsm = GetGSM();
+            return gsm != null ? gsm.StateName(index) : $"[{index}]";
+        }
+
+        private static GameStateManager GetGSM()
+        {
+            if (GameStateManager.instance != null) return GameStateManager.instance;
+#if UNITY_2023_1_OR_NEWER
+            return UnityEngine.Object.FindFirstObjectByType<GameStateManager>();
+#else
+            return UnityEngine.Object.FindObjectOfType<GameStateManager>();
+#endif
+        }
+
         private static string BuildAutoLabel(
-            ConditionMode lMode, SerializedProperty levelProp,
-            ConditionMode aMode, SerializedProperty anomalyProp,
-            ConditionMode tMode, SerializedProperty triggersProp)
+            ConditionMode gsMode,  string stateLabel,
+            ConditionMode aMode,   SerializedProperty anomalyProp,
+            ConditionMode tMode,   SerializedProperty triggersProp)
         {
             var andParts = new List<string>();
             var orParts  = new List<string>();
 
-            if (lMode == ConditionMode.AND) andParts.Add(((LevelState)levelProp.intValue).ToString());
-            if (lMode == ConditionMode.OR)  orParts.Add(((LevelState)levelProp.intValue).ToString());
+            if (gsMode == ConditionMode.AND) andParts.Add(stateLabel);
+            if (gsMode == ConditionMode.OR)  orParts.Add(stateLabel);
+
             if (aMode == ConditionMode.AND) andParts.Add(((AnomalyState)anomalyProp.intValue).ToString());
             if (aMode == ConditionMode.OR)  orParts.Add(((AnomalyState)anomalyProp.intValue).ToString());
 
@@ -628,29 +630,15 @@ namespace MetaFrame.State
                             .FindPropertyRelative("mode").intValue;
                 if (m != ConditionMode.Disabled) active++;
             }
-            if (tMode == ConditionMode.AND) andParts.Add($"{active} trigger(s)");
-            if (tMode == ConditionMode.OR)  orParts.Add($"{active} trigger(s)");
+            if (tMode == ConditionMode.AND) andParts.Add($"{active} condition(s)");
+            if (tMode == ConditionMode.OR)  orParts.Add($"{active} condition(s)");
 
             if (andParts.Count == 0 && orParts.Count == 0) return "(always fires)";
 
             var segments = new List<string>();
             if (andParts.Count > 0) segments.Add(string.Join(" AND ", andParts));
-            if (orParts.Count  > 0) segments.Add(string.Join(" OR ",  orParts));
+            if (orParts.Count  > 0) segments.Add(string.Join(" OR  ", orParts));
             return string.Join("  |  ", segments);
-        }
-
-        private void DrawSectionBlock(string title, string subtitle, System.Action draw)
-        {
-            var style = new GUIStyle(GUI.skin.box) { padding = new RectOffset(6, 6, 6, 6) };
-            EditorGUILayout.BeginVertical(style);
-            EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
-            EditorGUILayout.LabelField(subtitle, new GUIStyle(EditorStyles.miniLabel)
-                { wordWrap = true, fontStyle = FontStyle.Italic });
-            EditorGUILayout.Space(4);
-            EditorGUI.indentLevel++;
-            draw();
-            EditorGUI.indentLevel--;
-            EditorGUILayout.EndVertical();
         }
     }
 #endif

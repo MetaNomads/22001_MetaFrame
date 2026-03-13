@@ -101,6 +101,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: GazePointDebug
       objectReference: {fileID: 0}
+    - target: {fileID: 1554469975258492108, guid: e36f4f7128bf7a04686e5f1e1e955ee4,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4762269405886047554, guid: e36f4f7128bf7a04686e5f1e1e955ee4,
         type: 3}
       propertyPath: _gazePose
@@ -230,10 +235,19 @@ PrefabInstance:
       propertyPath: m_Name
       value: Manager
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4125215286663979837, guid: ba3e2d7060e954343a770804b62c8952, type: 3}
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 7484350693822371999, guid: ba3e2d7060e954343a770804b62c8952,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 966193688215050348}
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6299371230436678506, guid: ba3e2d7060e954343a770804b62c8952,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3475537599097613807}
   m_SourcePrefab: {fileID: 100100000, guid: ba3e2d7060e954343a770804b62c8952, type: 3}
 --- !u!114 &5758158659412190448 stripped
 MonoBehaviour:
@@ -253,6 +267,124 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 3944612131375601822}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &7049768492381799412 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6299371230436678506, guid: ba3e2d7060e954343a770804b62c8952,
+    type: 3}
+  m_PrefabInstance: {fileID: 3944612131375601822}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &3475537599097613807
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7049768492381799412}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0daa247ed2fc49d42899a69afef4ed1a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MetaFrame.Data.SurveyDataRecorder
+  gsm: {fileID: 9098703724060182378}
+  trackingdataRecorder: {fileID: 8437197186799342753}
+--- !u!114 &8437197186799342753 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4875395043848834111, guid: ba3e2d7060e954343a770804b62c8952,
+    type: 3}
+  m_PrefabInstance: {fileID: 3944612131375601822}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7049768492381799412}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00914be33348943439950d75db686485, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!1001 &5730562677025769062
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 5864762693749948417}
+    m_Modifications:
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6070681811727956260, guid: 09f45279516aa0642aa2a5cb63febbee,
+        type: 3}
+      propertyPath: m_Name
+      value: GameStateManager
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 09f45279516aa0642aa2a5cb63febbee, type: 3}
+--- !u!4 &966193688215050348 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4823232531370597898, guid: 09f45279516aa0642aa2a5cb63febbee,
+    type: 3}
+  m_PrefabInstance: {fileID: 5730562677025769062}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &9098703724060182378 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 3585457600484475148, guid: 09f45279516aa0642aa2a5cb63febbee,
+    type: 3}
+  m_PrefabInstance: {fileID: 5730562677025769062}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5bd0adad3989d0947b6e6c0144162fd0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MetaFrame.State.GameStateManager
 --- !u!1001 &8266347968978522529
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -425,6 +557,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: MetaFrame_CameraRig
+      objectReference: {fileID: 0}
+    - target: {fileID: 9212864895072275769, guid: 43aebc342e5204e4ebd46ccf22bc76a1,
+        type: 3}
+      propertyPath: m_IsTrigger
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 4967072713230753924, guid: 43aebc342e5204e4ebd46ccf22bc76a1, type: 3}

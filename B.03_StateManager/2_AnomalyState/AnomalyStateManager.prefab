@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3083218373746263077}
-  - component: {fileID: 401986034146046598}
+  - component: {fileID: 1994297306626128970}
   - component: {fileID: 5368349914623968483}
   m_Layer: 0
   m_Name: AnomalyStateManager
@@ -26,14 +26,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5983131079017212769}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &401986034146046598
+--- !u!114 &1994297306626128970
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -42,26 +42,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 5983131079017212769}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 903dc09099cb8dc4b8ffbf6cec731240, type: 3}
+  m_Script: {fileID: 11500000, guid: cfef2fca823b5104b99eec5980d78972, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::AnomalyStateManager
-  anomalyToTrigger: {fileID: 11400000, guid: d70861705a9d2ef498ad41515776503b, type: 2}
-  eventBindings:
-  - bindingName: disable grabbable when object_at_target
-    levelStateMode: 0
-    levelStates: 0
-    anomalyStateMode: 1
-    anomalyStates: 0
-    triggerMode: 1
-    triggerScripts:
-    - mode: 0
-      script: {fileID: 0}
-    onEnter:
-      m_PersistentCalls:
-        m_Calls: []
-    onExit:
-      m_PersistentCalls:
-        m_Calls: []
+  m_EditorClassIdentifier: Assembly-CSharp::MetaFrame.State.AnomalyStateManager
+  anomalyToTrigger: {fileID: 0}
+  eventBindings: []
 --- !u!114 &5368349914623968483
 MonoBehaviour:
   m_ObjectHideFlags: 0
