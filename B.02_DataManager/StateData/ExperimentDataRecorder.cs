@@ -4,7 +4,6 @@ using System.IO;
 using UnityEngine;
 using MetaFrame.State;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 
 namespace MetaFrame.Data
 {
@@ -13,40 +12,33 @@ namespace MetaFrame.Data
     public class TransitionEvent
     {
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string source;     // GameObject name — populated for anomaly transitions
+        public string source;
         public string from;
         public string to;
         public string timestamp;
 
         public TransitionEvent(string from, string to, DateTime time, string source = null)
         {
-            this.source = string.IsNullOrEmpty(source) ? null : source;
-            this.from   = from;
-            this.to     = to;
-            timestamp   = time.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+            this.source   = string.IsNullOrEmpty(source) ? null : source;
+            this.from     = from;
+            this.to       = to;
+            this.timestamp = time.ToString("yyyy-MM-dd_HH-mm-ss.fff");
         }
     }
 
     public class SurveyEntry
     {
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string detection;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string confidence;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string plausibility;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string reportStart;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string reportEnd;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string detection;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string confidence;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string plausibility;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string reportStart;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string reportEnd;
     }
 
     public class TrialRecord
     {
         public int    trialNumber;
-
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string anomaly;
+        public string stimulus;
 
         public List<TransitionEvent> stateTransitions   = new();
         public List<TransitionEvent> anomalyTransitions = new();
@@ -59,6 +51,8 @@ namespace MetaFrame.Data
     {
         public string sessionLabel;
         public string sessionStart;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string sessionEnd;
         public List<TrialRecord> trials = new();
     }
 
@@ -66,6 +60,8 @@ namespace MetaFrame.Data
     {
         public int    subjectID;
         public string experimentStart;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string experimentEnd;
         public List<SessionRecord> sessions = new();
     }
 
@@ -79,13 +75,14 @@ namespace MetaFrame.Data
         public string reportStart;
     }
 
-    // ── SurveyDataRecorder ────────────────────────────────────────────────────────
+    // ── ExperimentDataRecorder ────────────────────────────────────────────────────────
 
-    public class SurveyDataRecorder : MonoBehaviour
+    public class ExperimentDataRecorder : MonoBehaviour
     {
         [Header("References")]
-        [SerializeField] private GameStateManager      gsm;
-        [SerializeField] private TrackingDataRecorder  trackingdataRecorder;
+        [SerializeField] private GameStateManager     gsm;
+        [SerializeField] private TrackingDataRecorder trackingdataRecorder;
+        [SerializeField] private SurveyDataRecorder   surveyRecorder;
 
         // ── File path ──────────────────────────────────────────────────────────────
 
@@ -93,17 +90,14 @@ namespace MetaFrame.Data
             ? Path.Combine(trackingdataRecorder.sessionPath, "ExperimentData.json")
             : null;
 
-        // ── In-memory experiment data ──────────────────────────────────────────────
+        // ── In-memory state ────────────────────────────────────────────────────────
 
         private ExperimentRecord _experiment;
+        private SessionRecord    _currentSession;
+        private TrialRecord      _currentTrial;
+        private string           _prevGsmStateName;
 
-        // ── Current context pointers ──────────────────────────────────────────────
-
-        private SessionRecord _currentSession;
-        private TrialRecord   _currentTrial;
-        private int           _trialNumber;
-
-        // ── Dynamic ASM tracking ──────────────────────────────────────────────────
+        // ── ASM tracking ──────────────────────────────────────────────────────────
 
         private readonly List<AnomalyStateManager> _trackedAsms = new();
 
@@ -118,8 +112,10 @@ namespace MetaFrame.Data
         {
             ExperimentSequencer.OnExperimentBegan += OnExperimentBegan;
             ExperimentSequencer.OnSessionBegan    += OnSessionBegan;
+            ExperimentSequencer.OnSessionEnded    += OnSessionEnded;
             ExperimentSequencer.OnTrialBegan      += OnTrialBegan;
             ExperimentSequencer.OnTrialEnded      += OnTrialEnded;
+            ExperimentSequencer.OnExperimentEnded += OnExperimentEnded;
 
             if (gsm != null)
                 gsm.OnStateChanged += OnStateChanged;
@@ -132,8 +128,10 @@ namespace MetaFrame.Data
         {
             ExperimentSequencer.OnExperimentBegan -= OnExperimentBegan;
             ExperimentSequencer.OnSessionBegan    -= OnSessionBegan;
+            ExperimentSequencer.OnSessionEnded    -= OnSessionEnded;
             ExperimentSequencer.OnTrialBegan      -= OnTrialBegan;
             ExperimentSequencer.OnTrialEnded      -= OnTrialEnded;
+            ExperimentSequencer.OnExperimentEnded -= OnExperimentEnded;
 
             if (gsm != null)
                 gsm.OnStateChanged -= OnStateChanged;
@@ -153,14 +151,12 @@ namespace MetaFrame.Data
             if (_trackedAsms.Contains(asm)) return;
             _trackedAsms.Add(asm);
             asm.OnAnomalyStateChanged += OnAnomalyStateChanged;
-            Debug.Log($"[SurveyDataRecorder] Tracking ASM: {asm.gameObject.name} ({_trackedAsms.Count} total)");
         }
 
         private void UntrackAsm(AnomalyStateManager asm)
         {
             if (!_trackedAsms.Remove(asm)) return;
             asm.OnAnomalyStateChanged -= OnAnomalyStateChanged;
-            Debug.Log($"[SurveyDataRecorder] Untracked ASM: {asm.gameObject.name} ({_trackedAsms.Count} remaining)");
         }
 
         // ── Sequencer Event Handlers ──────────────────────────────────────────────
@@ -169,7 +165,7 @@ namespace MetaFrame.Data
         {
             if (OutputPath == null)
             {
-                Debug.LogError("[SurveyDataRecorder] No sessionPath yet. Call StartRecording() first.");
+                Debug.LogError("[ExperimentDataRecorder] No sessionPath. Call StartRecording() first.");
                 return;
             }
 
@@ -179,69 +175,120 @@ namespace MetaFrame.Data
                 experimentStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
             };
 
-            _trialNumber = 0;
-            Debug.Log($"[SurveyDataRecorder] Experiment initialised. Output: {OutputPath}");
+            _prevGsmStateName = null;
+            Debug.Log($"[ExperimentDataRecorder] Experiment began. Output: {OutputPath}");
         }
 
         private void OnSessionBegan(string sessionLabel)
         {
+            if (_experiment == null)
+            {
+                Debug.LogError("[ExperimentDataRecorder] OnSessionBegan — no experiment record. Was OnExperimentBegan received?");
+                return;
+            }
+
             _currentSession = new SessionRecord
             {
                 sessionLabel = sessionLabel,
                 sessionStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
             };
-
             _experiment.sessions.Add(_currentSession);
-            _trialNumber = 0;
-
-            Debug.Log($"[SurveyDataRecorder] Session begun: {sessionLabel}");
+            Debug.Log($"[ExperimentDataRecorder] Session began: {sessionLabel}");
         }
 
-        private void OnTrialBegan(AnomalyDefinition anomaly)
+        private void OnSessionEnded()
+        {
+            if (_currentSession == null) return;
+            _currentSession.sessionEnd = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+            _currentSession = null;
+            Flush();
+            Debug.Log("[ExperimentDataRecorder] Session ended.");
+        }
+
+        private void OnTrialBegan(AnomalyDefinition anomaly, string stimulus)
         {
             if (_currentSession == null)
             {
-                Debug.LogError("[SurveyDataRecorder] OnTrialBegan received with no active session.");
+                Debug.LogError("[ExperimentDataRecorder] OnTrialBegan — no active session.");
                 return;
             }
 
-            _trialNumber++;
-            string anomalyId = anomaly != null ? anomaly.id : null;
-
             _currentTrial = new TrialRecord
             {
-                trialNumber = _trialNumber,
-                anomaly     = anomalyId,
+                trialNumber = _currentSession.trials.Count + 1,
+                stimulus    = stimulus,
             };
 
+            // trial_start was entered before OnTrialBegan fired — record it as the opening entry
+            if (gsm != null)
+            {
+                _currentTrial.stateTransitions.Add(new TransitionEvent(
+                    from: _prevGsmStateName ?? "—",
+                    to:   gsm.StateName(gsm.CurrentStateIndex),
+                    time: DateTime.Now));
+            }
+
             _currentSession.trials.Add(_currentTrial);
-            Debug.Log($"[SurveyDataRecorder] Trial {_trialNumber} begun. Anomaly: {anomalyId ?? "NORMAL"}");
+            Debug.Log($"[ExperimentDataRecorder] Trial {_currentTrial.trialNumber} began in '{_currentSession.sessionLabel}'. Stimulus: {stimulus}");
         }
 
         private void OnTrialEnded()
         {
             if (_currentTrial == null)
             {
-                Debug.LogError("[SurveyDataRecorder] OnTrialEnded received with no active trial.");
+                Debug.LogError("[ExperimentDataRecorder] OnTrialEnded — no active trial.");
                 return;
             }
 
             _currentTrial = null;
             Flush();
-            Debug.Log("[SurveyDataRecorder] Trial ended and flushed.");
+        }
+
+        private void OnExperimentEnded()
+        {
+            if (_experiment == null) return;
+            _experiment.experimentEnd = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+            Flush();
+            Debug.Log("[ExperimentDataRecorder] Experiment ended.");
         }
 
         // ── Public API ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Submit survey responses for the current trial.
-        /// Attaches them to the current trial record and flushes to disk.
+        /// True when the survey has valid data that can be captured.
+        /// ExperimentController checks this before allowing Advance().
+        /// Returns true if no surveyRecorder is assigned (survey is optional).
         /// </summary>
+        public bool IsSurveyReady =>
+            surveyRecorder == null || surveyRecorder.IsReady;
+
+        /// <summary>
+        /// Collects survey responses from SurveyDataRecorder and writes them to the current trial.
+        /// Call this immediately before Advance().
+        /// </summary>
+        public void CaptureSurvey()
+        {
+            if (surveyRecorder == null || _currentTrial == null) return;
+
+            var data = surveyRecorder.Collect();
+            _currentTrial.survey = new SurveyEntry
+            {
+                detection    = data.detection,
+                confidence   = data.confidence,
+                plausibility = data.plausibility,
+                reportStart  = data.reportStart,
+                reportEnd    = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
+            };
+
+            Flush();
+        }
+
+        /// <summary>Directly submit survey data without going through SurveyDataRecorder.</summary>
         public void SubmitSurvey(SurveyData data)
         {
             if (_currentTrial == null)
             {
-                Debug.LogError("[SurveyDataRecorder] SubmitSurvey called with no active trial.");
+                Debug.LogError("[ExperimentDataRecorder] SubmitSurvey — no active trial.");
                 return;
             }
 
@@ -257,10 +304,14 @@ namespace MetaFrame.Data
             Flush();
         }
 
-        // ── GSM Event Handlers ────────────────────────────────────────────────────
+        // ── GSM Event Handler ─────────────────────────────────────────────────────
 
         private void OnStateChanged(int fromIndex, int toIndex, DateTime timestamp)
         {
+            // Always track previous state name for the opening trial snapshot
+            _prevGsmStateName = gsm.StateName(fromIndex);
+
+            // Only record transitions that occur during an active trial
             if (_currentTrial == null) return;
 
             _currentTrial.stateTransitions.Add(new TransitionEvent(
@@ -289,7 +340,7 @@ namespace MetaFrame.Data
             string path = OutputPath;
             if (path == null)
             {
-                Debug.LogError("[SurveyDataRecorder] Cannot flush — no output path available.");
+                Debug.LogError("[ExperimentDataRecorder] Cannot flush — no output path.");
                 return;
             }
             try
@@ -299,12 +350,11 @@ namespace MetaFrame.Data
                     NullValueHandling = NullValueHandling.Ignore,
                     Formatting        = Formatting.Indented,
                 };
-                string json = JsonConvert.SerializeObject(_experiment, settings);
-                File.WriteAllText(path, json);
+                File.WriteAllText(path, JsonConvert.SerializeObject(_experiment, settings));
             }
             catch (Exception e)
             {
-                Debug.LogError($"[SurveyDataRecorder] Failed to write file: {e.Message}");
+                Debug.LogError($"[ExperimentDataRecorder] Failed to write: {e.Message}");
             }
         }
     }

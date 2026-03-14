@@ -94,15 +94,15 @@ namespace MetaFrame.State
         /// Request a transition to the slot whose definition matches <paramref name="to"/>.
         /// Validates allowedFrom rules; blocks and logs an error on violation.
         /// </summary>
-        public void RequestTransition(StateDefinition to)
+        public bool RequestTransition(StateDefinition to)
         {
             int toIndex = IndexOf(to);
             if (toIndex < 0)
             {
                 Debug.LogError($"[GSM] RequestTransition: '{to?.displayName}' not found in slots.");
-                return;
+                return false;
             }
-            RequestTransition(toIndex);
+            return RequestTransition(toIndex);
         }
 
         /// <summary>
@@ -216,8 +216,14 @@ namespace MetaFrame.State
 
         private void OnEnable()
         {
-            _slotsProp        = serializedObject.FindProperty("slots");
+            _slotsProp     = serializedObject.FindProperty("slots");
             _idleStateProp = serializedObject.FindProperty("idleState");
+            EditorApplication.update += Repaint;
+        }
+
+        private void OnDisable()
+        {
+            EditorApplication.update -= Repaint;
         }
 
         public override void OnInspectorGUI()
@@ -279,30 +285,52 @@ namespace MetaFrame.State
             var onEnter    = slot.FindPropertyRelative("onEnter");
             var onExit     = slot.FindPropertyRelative("onExit");
 
-            var   defAsset = defProp.objectReferenceValue as StateDefinition;
-            string header  = defAsset != null ? defAsset.displayName : $"(unassigned slot {index})";
+            var   defAsset  = defProp.objectReferenceValue as StateDefinition;
+            string header   = defAsset != null ? defAsset.displayName : $"(unassigned slot {index})";
+
+            bool inPlayMode = Application.isPlaying;
+            var  gsm        = GameStateManager.instance;
+            bool isCurrent  = inPlayMode && gsm != null && gsm.CurrentStateDefinition == defAsset && defAsset != null;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
             // ── Header row ─────────────────────────────────────────
             Rect headerRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight + 2f);
 
-            const float BTN_W  = 24f;
-            const float GAP    = 2f;
-            const float FOLD_W = 20f;
+            const float BTN_W   = 24f;
+            const float FORCE_W = 60f;
+            const float GAP     = 2f;
+            const float FOLD_W  = 20f;
 
             float right      = headerRect.xMax;
-            Rect  removeRect = new Rect(right - BTN_W,           headerRect.y, BTN_W, headerRect.height);
-            Rect  downRect   = new Rect(right - BTN_W*2 - GAP,   headerRect.y, BTN_W, headerRect.height);
-            Rect  upRect     = new Rect(right - BTN_W*3 - GAP*2, headerRect.y, BTN_W, headerRect.height);
+            Rect  removeRect = new Rect(right - BTN_W,                       headerRect.y, BTN_W,   headerRect.height);
+            Rect  downRect   = new Rect(right - BTN_W*2 - GAP,               headerRect.y, BTN_W,   headerRect.height);
+            Rect  upRect     = new Rect(right - BTN_W*3 - GAP*2,             headerRect.y, BTN_W,   headerRect.height);
+            Rect  idleRect   = new Rect(right - BTN_W*3 - GAP*2 - FORCE_W - GAP,     headerRect.y, FORCE_W, headerRect.height);
+            Rect  enterRect  = new Rect(right - BTN_W*3 - GAP*2 - FORCE_W*2 - GAP*2, headerRect.y, FORCE_W, headerRect.height);
             Rect  foldRect   = new Rect(headerRect.x, headerRect.y, FOLD_W, headerRect.height);
             Rect  labelRect  = new Rect(headerRect.x + FOLD_W + GAP, headerRect.y,
-                                        upRect.x - headerRect.x - FOLD_W - GAP * 2, headerRect.height);
+                                        enterRect.x - headerRect.x - FOLD_W - GAP * 2, headerRect.height);
 
             if (GUI.Button(foldRect, _foldouts[index] ? "▼" : "▶", EditorStyles.label))
                 _foldouts[index] = !_foldouts[index];
 
-            EditorGUI.LabelField(labelRect, header, EditorStyles.boldLabel);
+            // Label — highlighted if this is the current active state
+            var labelStyle = new GUIStyle(EditorStyles.boldLabel);
+            if (isCurrent)
+                labelStyle.normal.textColor = new Color(0.4f, 1f, 0.55f);
+            EditorGUI.LabelField(labelRect, header, labelStyle);
+
+            // Force Enter / Force Idle buttons — in header, play mode only
+            GUI.enabled = inPlayMode && gsm != null && defAsset != null;
+            GUI.color   = new Color(0.5f, 1f, 0.6f);
+            if (GUI.Button(enterRect, "Enter"))
+                gsm.ForceState(defAsset);
+            GUI.color = new Color(1f, 0.85f, 0.4f);
+            if (GUI.Button(idleRect, "→ Idle"))
+                gsm.ResetToIdleState();
+            GUI.color   = Color.white;
+            GUI.enabled = true;
 
             GUI.enabled = index > 0;
             if (GUI.Button(upRect,   "▲")) { _pendingMoveFrom = index; _pendingMoveTo = index - 1; }
@@ -370,34 +398,6 @@ namespace MetaFrame.State
                     EditorGUILayout.Space(4);
                     EditorGUILayout.PropertyField(onEnter, new GUIContent("On Enter"));
                     EditorGUILayout.PropertyField(onExit,  new GUIContent("On Exit"));
-
-                    // ── Play-mode test buttons ──────────────────────
-                    EditorGUILayout.Space(4);
-                    EditorGUILayout.LabelField("Test", EditorStyles.miniBoldLabel);
-                    EditorGUILayout.BeginHorizontal();
-
-                    bool inPlayMode = Application.isPlaying;
-                    var  gsm        = GameStateManager.instance;
-
-                    GUI.enabled = inPlayMode && gsm != null;
-
-                    GUI.color = new Color(0.5f, 1f, 0.6f);
-                    if (GUILayout.Button("Force Enter", GUILayout.Height(22)))
-                        gsm.ForceState(defAsset);
-
-                    GUI.color = new Color(1f, 0.85f, 0.4f);
-                    if (GUILayout.Button("Force Exit to Idle", GUILayout.Height(22)))
-                        gsm.ResetToIdleState();
-
-                    GUI.color   = Color.white;
-                    GUI.enabled = true;
-
-                    EditorGUILayout.EndHorizontal();
-
-                    if (!inPlayMode)
-                    {
-                        EditorGUILayout.HelpBox("Enter Play Mode to use test buttons.", MessageType.None);
-                    }
                 }
                 else
                 {

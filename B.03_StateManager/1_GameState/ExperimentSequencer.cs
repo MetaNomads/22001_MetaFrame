@@ -102,6 +102,8 @@ namespace MetaFrame.State
     
         [SerializeField] private GameStateManager gsm;
         [SerializeField] private StateDefinition  stateExperimentStart;
+        [SerializeField] private StateDefinition  stateSessionStart;
+        [SerializeField] private StateDefinition  stateSessionEnd;
         [SerializeField] private StateDefinition  stateTrialStart;
         [SerializeField] private StateDefinition  stateTrialEnd;
         [SerializeField] private StateDefinition  stateIdle;
@@ -109,9 +111,11 @@ namespace MetaFrame.State
     
         public GameStateManager  GSM                  => gsm;
         public StateDefinition   StateExperimentStart => stateExperimentStart;
+        public StateDefinition   StateSessionStart    => stateSessionStart;
+        public StateDefinition   StateSessionEnd      => stateSessionEnd;
         public StateDefinition   StateTrialStart      => stateTrialStart;
         public StateDefinition   StateTrialEnd        => stateTrialEnd;
-        public StateDefinition   StateIdle  => stateIdle;
+        public StateDefinition   StateIdle            => stateIdle;
         public StateDefinition   StateExperimentEnd   => stateExperimentEnd;
     
         // ── Runtime State ──────────────────────────────────────────────────────────
@@ -133,57 +137,76 @@ namespace MetaFrame.State
     
         /// <summary>Fires at the start of each session.</summary>
         public static event System.Action<string>           OnSessionBegan;
-    
-        /// <summary>Fires at the start of each trial. Carries the active anomaly (null = NORMAL).</summary>
-        public static event System.Action<AnomalyDefinition> OnTrialBegan;
+
+        /// <summary>Fires at the end of each session.</summary>
+        public static event System.Action                   OnSessionEnded;
+
+        /// <summary>Fires at the start of each trial. Carries the active anomaly (null = NORMAL) and the stimulus label (e.g. "Normal", "TMP_MET_001").</summary>
+        public static event System.Action<AnomalyDefinition, string> OnTrialBegan;
     
         /// <summary>Fires at the end of each trial.</summary>
         public static event System.Action                   OnTrialEnded;
-    
+
+        /// <summary>Fires when the experiment is complete.</summary>
+        public static event System.Action                   OnExperimentEnded;
+
         // ── Advance ────────────────────────────────────────────────────────────────
     
-        /// <summary>
-        /// Wire to a "Next" button. Drives the experiment forward one beat:
-        ///   experiment_start / idle  → trial_start        (begin session + trial)
-        ///   any mid-trial state      → trial_end + trial_start   (next trial)
-        ///                            → trial_end + idle          (last trial in session)
-        ///                            → trial_end + experiment_end (last trial overall)
-        /// Transition validity is enforced by GSM allowedFrom rules.
-        /// </summary>
         public void Advance()
         {
             var current = gsm.CurrentStateDefinition;
     
             if (current == stateExperimentStart || current == stateIdle)
             {
-                // Session boundary — begin session and fire first trial
+                // → session_start → trial_start
+                if (!gsm.RequestTransition(stateSessionStart)) return;
                 OnSessionBegan?.Invoke(CurrentSession.sessionLabel);
-                gsm.RequestTransition(stateTrialStart);
+                if (!gsm.RequestTransition(stateTrialStart)) return;
                 StartTrial();
             }
             else
             {
-                // Mid-trial — close the trial, then route to next state
-                gsm.RequestTransition(stateTrialEnd);
+                // Mid-trial → trial_end
+                if (!gsm.RequestTransition(stateTrialEnd)) return;
                 OnTrialEnded?.Invoke();
                 _trialIndex++;
-    
+
                 if (_trialIndex < CurrentSession.TrialCount)
                 {
-                    // More trials in this session
-                    gsm.RequestTransition(stateTrialStart);
+                    // More trials in this session → trial_start
+                    if (!gsm.RequestTransition(stateTrialStart)) return;
                     StartTrial();
                 }
                 else
                 {
-                    // Session complete
+                    // Session complete → session_end
+                    if (!gsm.RequestTransition(stateSessionEnd)) return;
+                    OnSessionEnded?.Invoke();
                     _sessionIndex++;
                     _trialIndex = 0;
-    
+
                     if (_sessionIndex < resolvedSequences.Count)
-                        gsm.RequestTransition(stateIdle);
+                    {
+                        // More sessions → idle
+                        if (!gsm.RequestTransition(stateIdle))
+                        {
+                            _sessionIndex--;
+                            Debug.LogError("[Sequencer] Failed to transition to idle — session index rolled back.");
+                        }
+                    }
                     else
-                        gsm.RequestTransition(stateExperimentEnd);
+                    {
+                        // All sessions done → experiment_end
+                        if (!gsm.RequestTransition(stateExperimentEnd))
+                        {
+                            _sessionIndex--;
+                            Debug.LogError("[Sequencer] Failed to transition to experiment_end — session index rolled back.");
+                        }
+                        else
+                        {
+                            OnExperimentEnded?.Invoke();
+                        }
+                    }
                 }
             }
         }
@@ -211,11 +234,12 @@ namespace MetaFrame.State
         private void StartTrial()
         {
             AnomalyDefinition anomaly = CurrentSession.AnomalyAt(_trialIndex);
-            OnTrialBegan?.Invoke(anomaly);
+            string stimulus           = anomaly != null ? anomaly.id : "Normal";
+            OnTrialBegan?.Invoke(anomaly, stimulus);
     
             Debug.Log($"[Sequencer] Session '{CurrentSession.sessionLabel}' " +
                       $"| Trial {_trialIndex + 1}/{CurrentSession.TrialCount} " +
-                      $"| Anomaly: {(anomaly != null ? anomaly.id : "NORMAL")}");
+                      $"| Stimulus: {stimulus}");
         }
     
         public void LoadSequence()
@@ -339,6 +363,8 @@ namespace MetaFrame.State
         private SerializedProperty _stimuliSequences;
         private SerializedProperty _gsm;
         private SerializedProperty _stateExperimentStart;
+        private SerializedProperty _stateSessionStart;
+        private SerializedProperty _stateSessionEnd;
         private SerializedProperty _stateTrialStart;
         private SerializedProperty _stateTrialEnd;
         private SerializedProperty _stateIdle;
@@ -353,11 +379,13 @@ namespace MetaFrame.State
             _sessionGroups           = serializedObject.FindProperty("sessionGroups");
             _stimuliSequences        = serializedObject.FindProperty("stimuliSequences");
             _gsm                     = serializedObject.FindProperty("gsm");
-            _stateExperimentStart = serializedObject.FindProperty("stateExperimentStart");
-            _stateTrialStart      = serializedObject.FindProperty("stateTrialStart");
-            _stateTrialEnd        = serializedObject.FindProperty("stateTrialEnd");
-            _stateIdle  = serializedObject.FindProperty("stateIdle");
-            _stateExperimentEnd   = serializedObject.FindProperty("stateExperimentEnd");
+            _stateExperimentStart    = serializedObject.FindProperty("stateExperimentStart");
+            _stateSessionStart       = serializedObject.FindProperty("stateSessionStart");
+            _stateSessionEnd         = serializedObject.FindProperty("stateSessionEnd");
+            _stateTrialStart         = serializedObject.FindProperty("stateTrialStart");
+            _stateTrialEnd           = serializedObject.FindProperty("stateTrialEnd");
+            _stateIdle               = serializedObject.FindProperty("stateIdle");
+            _stateExperimentEnd      = serializedObject.FindProperty("stateExperimentEnd");
         }
     
         public override void OnInspectorGUI()
@@ -449,13 +477,15 @@ namespace MetaFrame.State
             if (_stateConfigFoldout)
             {
                 EditorGUI.indentLevel++;
-                EditorGUILayout.PropertyField(_gsm,              new GUIContent("Game State Manager"));
+                EditorGUILayout.PropertyField(_gsm,                  new GUIContent("Game State Manager"));
                 EditorGUILayout.Space(4);
                 EditorGUILayout.LabelField("State References", EditorStyles.miniBoldLabel);
                 EditorGUILayout.PropertyField(_stateExperimentStart, new GUIContent("Experiment Start"));
+                EditorGUILayout.PropertyField(_stateSessionStart,    new GUIContent("Session Start"));
+                EditorGUILayout.PropertyField(_stateSessionEnd,      new GUIContent("Session End"));
                 EditorGUILayout.PropertyField(_stateTrialStart,      new GUIContent("Trial Start"));
                 EditorGUILayout.PropertyField(_stateTrialEnd,        new GUIContent("Trial End"));
-                EditorGUILayout.PropertyField(_stateIdle,  new GUIContent("Idle"));
+                EditorGUILayout.PropertyField(_stateIdle,            new GUIContent("Idle"));
                 EditorGUILayout.PropertyField(_stateExperimentEnd,   new GUIContent("Experiment End"));
                 EditorGUI.indentLevel--;
             }

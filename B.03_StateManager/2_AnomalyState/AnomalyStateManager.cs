@@ -211,7 +211,7 @@ namespace MetaFrame.State
 
         // ── Sequencer Callback ─────────────────────────────────────────────────
 
-        private void ActivateAnomaly(AnomalyDefinition activeAnomaly)
+        private void ActivateAnomaly(AnomalyDefinition activeAnomaly, string stimulus)
         {
             _pendingActions    = 0;
             _activeActions.Clear();
@@ -231,6 +231,8 @@ namespace MetaFrame.State
 
         private void SetAnomalyState(AnomalyState newState)
         {
+            if (_currentAnomalyState == newState) return;
+
             if (_pendingActions > 0)
             {
                 if (cancelActionsOnStateChange)

@@ -1,4 +1,5 @@
 using UnityEngine;
+using MetaFrame.Data;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -9,9 +10,23 @@ namespace MetaFrame.State
 
 public class ExperimentController : MonoBehaviour
 {
-    [SerializeField] private ExperimentSequencer sequencer;
+    [SerializeField] private ExperimentSequencer    sequencer;
+    [SerializeField] private ExperimentDataRecorder recorder;
+    [SerializeField] private bool                   requireSurveyToAdvance = true;
 
-    public void Step() => sequencer.Advance();
+    public void Step()
+    {
+        if (requireSurveyToAdvance && recorder != null && !recorder.IsSurveyReady)
+        {
+            Debug.LogWarning("[ExperimentController] Advance blocked — survey not ready (detection, confidence, and report start required).");
+            return;
+        }
+
+        if (requireSurveyToAdvance)
+            recorder?.CaptureSurvey();
+
+        sequencer.Advance();
+    }
 }
 
 #if UNITY_EDITOR
