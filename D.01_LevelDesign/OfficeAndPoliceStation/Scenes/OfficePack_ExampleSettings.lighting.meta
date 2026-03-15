@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: be53af8c19c5ec84a902c34233517df9
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 74311
+  packageName: Office and Police Station Pack (Modular)
+  packageVersion: 2.0.0
+  assetPath: Assets/OfficeAndPoliceStation/Scenes/OfficePack_ExampleSettings.lighting
+  uploadId: 696778

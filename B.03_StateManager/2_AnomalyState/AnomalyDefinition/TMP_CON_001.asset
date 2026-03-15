@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AnomalyDefinition
   id: TMP_CON_001
   anomalyName: ' Late Arrival'
-  domain: 0
-  type: 2
+  domain: 1
+  type: 3
   description: "After the button is pressed, the object takes 6\u201310 seconds to
     drop instead of the expected 2 seconds, violating the learned timing without
     any physical impossibility."

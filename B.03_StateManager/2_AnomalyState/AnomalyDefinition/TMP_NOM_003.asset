@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AnomalyDefinition
   id: TMP_NOM_003
   anomalyName: Unsolicited Levitation
-  domain: 0
-  type: 1
+  domain: 1
+  type: 2
   description: While reaching toward the object, it spontaneously rises and floats
     mid-air before the hand makes contact, with no agent action causing the lift.

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 34b13bbb8d148413db86f38f70430d5f
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 117273
+  packageName: Non-Convex Mesh Collider. Automatic Generator
+  packageVersion: 2.0
+  assetPath: Assets/Plawius-NonConvexCollider/Documentation/Manual.pdf
+  uploadId: 820208

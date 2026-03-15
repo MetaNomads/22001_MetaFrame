@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 3083218373746263077}
   - component: {fileID: 1994297306626128970}
-  - component: {fileID: 5368349914623968483}
   m_Layer: 0
   m_Name: AnomalyStateManager
   m_TagString: Untagged
@@ -45,19 +44,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cfef2fca823b5104b99eec5980d78972, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MetaFrame.State.AnomalyStateManager
-  anomalyToTrigger: {fileID: 0}
-  eventBindings: []
---- !u!114 &5368349914623968483
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5983131079017212769}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d06cdf99138611b418e2ab344d680fee, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Anomaly_New
-  player: {fileID: 0}
-  angleThreshold: 25
+  anomalyToTrigger: {fileID: 11400000, guid: 280b52c5fa9d5cb4da1573785bc3dfd8, type: 2}
+  cancelActionsOnStateChange: 1
+  triggers:
+  - triggerName: SoundAndDrop
+    gameStateMode: 1
+    stateIndex: 2
+    anomalyStateMode: 1
+    anomalyStates: 2
+    conditionMode: 0
+    conditions:
+    - mode: 0
+      script: {fileID: 0}
+    onEnter:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 0}
+          m_TargetAssemblyTypeName: DelayedEvent, Assembly-CSharp
+          m_MethodName: Play
+          m_Mode: 1
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    onExit:
+      m_PersistentCalls:
+        m_Calls: []

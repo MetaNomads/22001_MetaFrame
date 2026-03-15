@@ -42,7 +42,8 @@ namespace MetaFrame.State
     [System.Serializable]
     public class SessionGroup
     {
-        public string        groupName     = "Session";
+        public string        groupName          = "Session";
+        public AnomalyDefinition normalDefinition;
         public List<Object>  anomalyObjects = new();
     
         public AnomalyDefinition GetAnomaly(int index)
@@ -63,32 +64,26 @@ namespace MetaFrame.State
         public string       sessionLabel;
         public SessionGroup group;
         public int          listIndex;
-        public int[]        stimulusValues; // raw ints — 0 = Normal, 1..n = A1..An
-        public string[]     stimulus;       // display strings
+        public AnomalyDefinition[] definitions; // one per trial — null slots mean normal (fallback)
     
-        public int TrialCount => stimulusValues?.Length ?? 0;
+        public int TrialCount => definitions?.Length ?? 0;
     
-        public AnomalyDefinition ResolveAnomaly(int stimulusEntry)
-        {
-            if (stimulusEntry == 0 || group == null) return null;
-            return group.GetAnomaly(stimulusEntry - 1);
-        }
-    
-        public AnomalyDefinition AnomalyAt(int trialIndex)
-            => ResolveAnomaly(stimulusValues[trialIndex]);
+        public AnomalyDefinition AnomalyAt(int trialIndex) => definitions[trialIndex];
     }
     
     // ── ExperimentSequencer ───────────────────────────────────────────────────────
     
     public class ExperimentSequencer : MonoBehaviour
     {
+        public static ExperimentSequencer instance { get; private set; }
+
         [Min(1)] public int anomalyCount = 3;
     
         public int subjectID = 1;
     
         [Header("Tutorial Session")]
-        public SessionGroup    tutorialGroup           = new() { groupName = "Tutorial" };
-        public StimuliSequence tutorialStimuliSequence = new();
+        public SessionGroup              tutorialGroup   = new() { groupName = "Tutorial" };
+        public List<AnomalyDefinition>   tutorialStimuli = new();
     
         [Header("Session Groups")]
         public List<SessionGroup> sessionGroups = new();
@@ -168,6 +163,7 @@ namespace MetaFrame.State
             {
                 // Mid-trial → trial_end
                 if (!gsm.RequestTransition(stateTrialEnd)) return;
+                AnomalyStateManager.BroadcastTrialEnded();
                 OnTrialEnded?.Invoke();
                 _trialIndex++;
 
@@ -233,8 +229,9 @@ namespace MetaFrame.State
     
         private void StartTrial()
         {
-            AnomalyDefinition anomaly = CurrentSession.AnomalyAt(_trialIndex);
-            string stimulus           = anomaly != null ? anomaly.id : "Normal";
+            AnomalyDefinition anomaly  = CurrentSession.AnomalyAt(_trialIndex);
+            string            stimulus = anomaly != null ? anomaly.id : "Normal";
+            AnomalyStateManager.BroadcastTrialBegan(anomaly);
             OnTrialBegan?.Invoke(anomaly, stimulus);
     
             Debug.Log($"[Sequencer] Session '{CurrentSession.sessionLabel}' " +
@@ -246,19 +243,18 @@ namespace MetaFrame.State
         {
             resolvedSequences.Clear();
     
-            // ── Tutorial always goes first ──────────────────────────────────────────
+            // ── Tutorial — direct definition list ──────────────────────────────────
             resolvedSequences.Add(new ResolvedSequence
             {
-                sessionLabel   = tutorialGroup.groupName,
-                group          = tutorialGroup,
-                listIndex      = 0,
-                stimulusValues = tutorialStimuliSequence?.stimulus.ToArray() ?? System.Array.Empty<int>(),
-                stimulus       = tutorialStimuliSequence?.ToStringArray() ?? System.Array.Empty<string>(),
+                sessionLabel = tutorialGroup.groupName,
+                group        = tutorialGroup,
+                listIndex    = 0,
+                definitions  = tutorialStimuli.ToArray(),
             });
     
             if (subjectID < 1 ||
-                sessionGroups == null || sessionGroups.Count == 0 ||
-                stimuliSequences    == null || stimuliSequences.Count    == 0)
+                sessionGroups    == null || sessionGroups.Count    == 0 ||
+                stimuliSequences == null || stimuliSequences.Count == 0)
             {
                 Debug.Log(BuildSummary());
                 return;
@@ -270,17 +266,23 @@ namespace MetaFrame.State
             for (int s = 0; s < n; s++)
             {
                 int groupIdx = (s + orderShift) % n;
-                // Each subject starts at a different list, each session steps forward by 1
-                // Subject 1: L1, L2, L3 | Subject 2: L2, L3, L4 | Subject 3: L3, L4, L5 ...
                 int listIdx  = ((subjectID - 1) + s) % stimuliSequences.Count;
+    
+                var   group    = sessionGroups[groupIdx];
+                var   intList  = stimuliSequences[listIdx].stimulus;
+                var   defs     = new AnomalyDefinition[intList.Count];
+    
+                for (int t = 0; t < intList.Count; t++)
+                    defs[t] = intList[t] == 0
+                        ? group.normalDefinition
+                        : group.GetAnomaly(intList[t] - 1);
     
                 resolvedSequences.Add(new ResolvedSequence
                 {
-                    sessionLabel   = sessionGroups[groupIdx].groupName,
-                    group          = sessionGroups[groupIdx],
-                    listIndex      = listIdx + 1,
-                    stimulusValues = stimuliSequences[listIdx].stimulus.ToArray(),
-                    stimulus       = stimuliSequences[listIdx].ToStringArray(),
+                    sessionLabel = group.groupName,
+                    group        = group,
+                    listIndex    = listIdx + 1,
+                    definitions  = defs,
                 });
             }
     
@@ -323,18 +325,28 @@ namespace MetaFrame.State
                 string ids = string.Join(", ", s.group?.Anomalies
                     .Where(a => a != null).Select(a => a.id) ?? Enumerable.Empty<string>());
                 string listLabel = s.listIndex == 0 ? "Tutorial List" : $"List {s.listIndex}";
-                sb.AppendLine($"  {s.sessionLabel}: [{s.group?.groupName}]  {ids}  |  {listLabel} ({s.stimulus.Length} stimulus)");
+                sb.AppendLine($"  {s.sessionLabel}: [{s.group?.groupName}]  {ids}  |  {listLabel} ({s.definitions?.Length ?? 0} trials)");
             }
             return sb.ToString();
         }
     
+        private void Awake()
+        {
+            instance = this;
+        }
+
+        private void OnDestroy()
+        {
+            if (instance == this) instance = null;
+        }
+
         private void Start()
-    {
-        LoadSequence();
-        InitExperiment();
-        gsm.ForceState(stateExperimentStart);
-        Debug.Log("[Sequencer] Ready at experiment_start.");
-    }
+        {
+            LoadSequence();
+            InitExperiment();
+            gsm.ForceState(stateExperimentStart);
+            Debug.Log("[Sequencer] Ready at experiment_start.");
+        }
     }
 
 } // namespace MetaFrame.State
@@ -358,7 +370,7 @@ namespace MetaFrame.State
         private SerializedProperty _anomalyCount;
         private SerializedProperty _subjectID;
         private SerializedProperty _tutorialGroup;
-        private SerializedProperty _tutorialStimuliSequence;
+        private SerializedProperty _tutorialStimuli;
         private SerializedProperty _sessionGroups;
         private SerializedProperty _stimuliSequences;
         private SerializedProperty _gsm;
@@ -375,7 +387,7 @@ namespace MetaFrame.State
             _anomalyCount            = serializedObject.FindProperty("anomalyCount");
             _subjectID               = serializedObject.FindProperty("subjectID");
             _tutorialGroup           = serializedObject.FindProperty("tutorialGroup");
-            _tutorialStimuliSequence = serializedObject.FindProperty("tutorialStimuliSequence");
+            _tutorialStimuli         = serializedObject.FindProperty("tutorialStimuli");
             _sessionGroups           = serializedObject.FindProperty("sessionGroups");
             _stimuliSequences        = serializedObject.FindProperty("stimuliSequences");
             _gsm                     = serializedObject.FindProperty("gsm");
@@ -411,21 +423,11 @@ namespace MetaFrame.State
     
             // ── Tutorial row (always first) ──────────────────────────────
             {
-                var tutObjsProp = _tutorialGroup.FindPropertyRelative("anomalyObjects");
-                string tutGroupName = _tutorialGroup.FindPropertyRelative("groupName").stringValue;
-                var tutIds = new List<string>();
-                for (int a = 0; a < tutObjsProp.arraySize; a++)
-                {
-                    var def = tutObjsProp.GetArrayElementAtIndex(a).objectReferenceValue as AnomalyDefinition;
-                    if (def != null) tutIds.Add(def.id);
-                }
-                var tutStimulusProp  = _tutorialStimuliSequence.FindPropertyRelative("stimulus");
-                int tutStimulusCount = tutStimulusProp.arraySize;
-    
+                string tutGroupName      = _tutorialGroup.FindPropertyRelative("groupName").stringValue;
+                int    tutStimulusCount  = _tutorialStimuli.arraySize;
+
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.TextField($"{tutGroupName}   |   Tutorial List   |   {tutStimulusCount} stimulus");
-                if (tutIds.Count > 0)
-                    EditorGUILayout.TextField(string.Join(", ", tutIds));
+                EditorGUILayout.TextField($"{tutGroupName}   |   Tutorial   |   {tutStimulusCount} trials");
                 EditorGUILayout.EndVertical();
             }
     
@@ -499,88 +501,35 @@ namespace MetaFrame.State
             if (_tutorialFoldout)
             {
                 EditorGUI.indentLevel++;
-    
-                var tutNameProp     = _tutorialGroup.FindPropertyRelative("groupName");
-                var tutObjsProp     = _tutorialGroup.FindPropertyRelative("anomalyObjects");
-                var tutStimulusProp = _tutorialStimuliSequence.FindPropertyRelative("stimulus");
-                int tac             = tutObjsProp.arraySize;
-    
-                // ── Block 1: Anomaly Definitions ────────────────────────
+
+                // ── Stimuli — direct AnomalyDefinition list ─────────────
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-    
+
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField($"Anomaly Definitions  ({tac})", EditorStyles.miniBoldLabel);
-                if (GUILayout.Button("+", GUILayout.Width(26)))
-                {
-                    tutObjsProp.arraySize++;
-                    tac = tutObjsProp.arraySize;
-                }
-                if (tac > 0 && GUILayout.Button("−", GUILayout.Width(26)))
-                {
-                    tutObjsProp.arraySize--;
-                    tac = tutObjsProp.arraySize;
-                }
+                EditorGUILayout.LabelField($"Stimuli  ({_tutorialStimuli.arraySize})", EditorStyles.miniBoldLabel);
+                if (GUILayout.Button("+", GUILayout.Width(26))) _tutorialStimuli.arraySize++;
+                if (_tutorialStimuli.arraySize > 0 && GUILayout.Button("−", GUILayout.Width(26))) _tutorialStimuli.arraySize--;
                 EditorGUILayout.EndHorizontal();
-    
+
                 EditorGUI.indentLevel++;
-                if (tac == 0)
+                for (int t = 0; t < _tutorialStimuli.arraySize; t++)
                 {
-                    EditorGUILayout.LabelField("(no anomaly slots — noise only)", EditorStyles.miniLabel);
-                }
-                else
-                {
-                    for (int a = 0; a < tac; a++)
-                    {
-                        var elemProp = tutObjsProp.GetArrayElementAtIndex(a);
-                        var current  = elemProp.objectReferenceValue as AnomalyDefinition;
-                        string hint  = current != null ? $"  [{current.id}]" : "";
-    
-                        Rect rect = EditorGUILayout.GetControlRect();
-                        EditorGUI.BeginChangeCheck();
-                        var picked = (AnomalyDefinition)EditorGUI.ObjectField(
-                            rect, new GUIContent($"A{a + 1}{hint}"),
-                            current, typeof(AnomalyDefinition), false);
-                        if (EditorGUI.EndChangeCheck())
-                            elemProp.objectReferenceValue = picked;
-                    }
+                    var elemProp = _tutorialStimuli.GetArrayElementAtIndex(t);
+                    var current  = elemProp.objectReferenceValue as AnomalyDefinition;
+                    string hint  = current != null ? $"  [{current.id}]" : "  [Normal]";
+
+                    Rect rect = EditorGUILayout.GetControlRect();
+                    EditorGUI.BeginChangeCheck();
+                    var picked = (AnomalyDefinition)EditorGUI.ObjectField(
+                        rect, new GUIContent($"{t + 1:D2}{hint}"),
+                        current, typeof(AnomalyDefinition), false);
+                    if (EditorGUI.EndChangeCheck())
+                        elemProp.objectReferenceValue = picked;
                 }
                 EditorGUI.indentLevel--;
-    
+
                 EditorGUILayout.EndVertical();
-                EditorGUILayout.Space(2);
-    
-                // ── Block 2: Stimuli Sequence ────────────────────────────
-                tac = tutObjsProp.arraySize;   // re-read after block 1 mutations
-                string[] popupOptionsTut = new string[tac + 1];
-                popupOptionsTut[0] = "N";
-                for (int i = 0; i < tac; i++) popupOptionsTut[i + 1] = $"A{i + 1}";
-    
-                string tutStats = BuildStats(seq.tutorialStimuliSequence, tac);
-    
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-    
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField($"Stimuli Sequence  ({tutStimulusProp.arraySize})   —   {tutStats}", EditorStyles.miniBoldLabel);
-                if (GUILayout.Button("+", GUILayout.Width(26))) tutStimulusProp.arraySize++;
-                if (tutStimulusProp.arraySize > 0 && GUILayout.Button("−", GUILayout.Width(26))) tutStimulusProp.arraySize--;
-                EditorGUILayout.EndHorizontal();
-    
-                EditorGUI.indentLevel++;
-                for (int t = 0; t < tutStimulusProp.arraySize; t++)
-                {
-                    var entryProp = tutStimulusProp.GetArrayElementAtIndex(t);
-                    int current   = Mathf.Clamp(entryProp.intValue, 0, tac);
-    
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField($"  {t + 1:D2}", GUILayout.Width(36));
-                    int chosen = EditorGUILayout.Popup(current, popupOptionsTut);
-                    if (chosen != current) entryProp.intValue = chosen;
-                    EditorGUILayout.EndHorizontal();
-                }
-                EditorGUI.indentLevel--;
-    
-                EditorGUILayout.EndVertical();
-    
+
                 EditorGUI.indentLevel--;
             }
     
@@ -641,6 +590,19 @@ namespace MetaFrame.State
                         string newName = EditorGUILayout.TextField(new GUIContent("Session Name"), nameProp.stringValue);
                         if (EditorGUI.EndChangeCheck())
                             nameProp.stringValue = newName;
+
+                        // Normal definition
+                        var normalProp   = groupProp.FindPropertyRelative("normalDefinition");
+                        var normalDef    = normalProp.objectReferenceValue as AnomalyDefinition;
+                        string normalHint = normalDef != null ? $"  [{normalDef.id}]" : "  (none)";
+                        Rect normalRect  = EditorGUILayout.GetControlRect();
+                        EditorGUI.BeginChangeCheck();
+                        var pickedNormal = (AnomalyDefinition)EditorGUI.ObjectField(
+                            normalRect, new GUIContent($"Normal{normalHint}"),
+                            normalDef, typeof(AnomalyDefinition), false);
+                        if (EditorGUI.EndChangeCheck())
+                            normalProp.objectReferenceValue = pickedNormal;
+
                         EditorGUILayout.LabelField("Anomaly Definitions", EditorStyles.miniBoldLabel);
                         EditorGUI.indentLevel++;
     

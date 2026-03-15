@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AnomalyDefinition
   id: TMP_MET_002
   anomalyName: ' Persistent Double'
-  domain: 0
-  type: 0
+  domain: 1
+  type: 1
   description: While the object is held, a duplicate reappears at source and remains
     there until the moment the held object is placed, at which point both disappear
     together.

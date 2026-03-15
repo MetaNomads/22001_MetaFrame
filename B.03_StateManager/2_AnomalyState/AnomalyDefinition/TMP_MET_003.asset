@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AnomalyDefinition
   id: TMP_MET_003
   anomalyName: Overlapping Origin
-  domain: 0
-  type: 0
+  domain: 1
+  type: 1
   description: As the object is being picked up, a duplicate is already present at
     source and disappears before the object in hand reaches the target.

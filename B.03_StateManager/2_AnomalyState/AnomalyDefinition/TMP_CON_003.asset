@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AnomalyDefinition
   id: TMP_CON_003
   anomalyName: Reversed Cue
-  domain: 0
-  type: 2
+  domain: 1
+  type: 3
   description: Sound plays after the object has already landed, reversing the learned
     audio-visual sequence participants use to anticipate the object's arrival.

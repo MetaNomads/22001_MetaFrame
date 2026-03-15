@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1a21e2c02e9a64e8cbad8e43c0730919
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4890085278179872738
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 117273
+  packageName: Non-Convex Mesh Collider. Automatic Generator
+  packageVersion: 2.0
+  assetPath: Assets/Plawius-NonConvexCollider/RuntimeDemo/RuntimeTestSceneSettings.lighting
+  uploadId: 820208

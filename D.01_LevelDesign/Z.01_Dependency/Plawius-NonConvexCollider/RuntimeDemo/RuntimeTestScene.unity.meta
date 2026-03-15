@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 075e8a675f1684611b3e7e61239f4aa3
+timeCreated: 1552541845
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 117273
+  packageName: Non-Convex Mesh Collider. Automatic Generator
+  packageVersion: 2.0
+  assetPath: Assets/Plawius-NonConvexCollider/RuntimeDemo/RuntimeTestScene.unity
+  uploadId: 820208

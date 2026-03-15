@@ -267,4 +267,76 @@ namespace MetaNomads.Interaction
     }
 
 #endif
+
+    /// <summary>
+    /// Companion for InteractableEventManager.
+    /// Select an event from the dropdown, then wire Enter() / Exit()
+    /// into any UnityEvent in the inspector with no arguments needed.
+    /// </summary>
+    public class InteractableEventCaller : MonoBehaviour
+    {
+        [SerializeField] private InteractableEventManager manager;
+        [SerializeField] private int eventIndex;
+
+        public void Enter() => manager?.TriggerEnter(eventIndex);
+        public void Exit()  => manager?.TriggerExit(eventIndex);
+    }
+
+#if UNITY_EDITOR
+    [CustomEditor(typeof(InteractableEventCaller))]
+    public class InteractableEventCallerEditor : Editor
+    {
+        private SerializedProperty _manager;
+        private SerializedProperty _eventIndex;
+
+        private void OnEnable()
+        {
+            _manager    = serializedObject.FindProperty("manager");
+            _eventIndex = serializedObject.FindProperty("eventIndex");
+        }
+
+        public override void OnInspectorGUI()
+        {
+            serializedObject.Update();
+
+            EditorGUILayout.PropertyField(_manager);
+
+            var mgr = (InteractableEventManager)_manager.objectReferenceValue
+                      ?? ((InteractableEventCaller)target).GetComponent<InteractableEventManager>();
+
+            if (mgr != null)
+            {
+                var names = mgr.GetEventNames();
+                if (names.Count > 0)
+                {
+                    int current = Mathf.Clamp(_eventIndex.intValue, 0, names.Count - 1);
+                    int chosen  = EditorGUILayout.Popup("Event", current, names.ToArray());
+                    if (chosen != current) _eventIndex.intValue = chosen;
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox("No events defined on the manager.", MessageType.Info);
+                }
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(_eventIndex, new GUIContent("Event Index"));
+                EditorGUILayout.HelpBox("Assign a manager to see a dropdown.", MessageType.Info);
+            }
+
+            serializedObject.ApplyModifiedProperties();
+
+            GUI.enabled = Application.isPlaying && mgr != null;
+            EditorGUILayout.BeginHorizontal();
+            GUI.color = new Color(0.4f, 0.9f, 0.5f);
+            if (GUILayout.Button("▶ Enter")) ((InteractableEventCaller)target).Enter();
+            GUI.color = new Color(1f, 0.7f, 0.4f);
+            if (GUILayout.Button("◀ Exit"))  ((InteractableEventCaller)target).Exit();
+            GUI.color   = Color.white;
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
+        }
+    }
+#endif
+
 }

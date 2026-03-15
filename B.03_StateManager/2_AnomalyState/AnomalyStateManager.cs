@@ -185,6 +185,31 @@ namespace MetaFrame.State
         /// <summary>Fires whenever the anomaly state changes. Passes sender, from/to states, and exact timestamp.</summary>
         public event Action<AnomalyStateManager, AnomalyState, AnomalyState, DateTime> OnAnomalyStateChanged;
 
+        private bool _started;
+
+        // ── Static Trial State — set by whoever drives trials (e.g. ExperimentSequencer) ──
+
+        private static AnomalyDefinition _currentTrialAnomaly;
+
+        /// <summary>
+        /// Call this at the start of each trial to broadcast the active anomaly to all ASMs.
+        /// ExperimentSequencer calls this — but any other system can too.
+        /// </summary>
+        public static void BroadcastTrialBegan(AnomalyDefinition anomaly)
+        {
+            _currentTrialAnomaly = anomaly;
+            foreach (var asm in _allAsms)
+                asm.ActivateAnomaly(anomaly);
+        }
+
+        /// <summary>Call this at trial end to clear the cached anomaly.</summary>
+        public static void BroadcastTrialEnded()
+        {
+            _currentTrialAnomaly = null;
+        }
+
+        private static readonly List<AnomalyStateManager> _allAsms = new();
+
         // ── Lifecycle ──────────────────────────────────────────────
 
         private void Start()
@@ -193,10 +218,17 @@ namespace MetaFrame.State
             if (gsm == null) { Debug.LogError("[ASM] No GameStateManager found!"); return; }
 
             gsm.OnStateChanged += OnStateChanged;
-            ExperimentSequencer.OnTrialBegan += ActivateAnomaly;
+            _allAsms.Add(this);
             SetupObjectAtStart();
 
             OnRegistered?.Invoke(this);
+            _started = true;
+            SyncState();
+        }
+
+        private void OnEnable()
+        {
+            if (_started) SyncState();
         }
 
         private void OnDestroy()
@@ -205,13 +237,13 @@ namespace MetaFrame.State
             if (gsm != null)
                 gsm.OnStateChanged -= OnStateChanged;
 
-            ExperimentSequencer.OnTrialBegan -= ActivateAnomaly;
+            _allAsms.Remove(this);
             OnUnregistered?.Invoke(this);
         }
 
-        // ── Sequencer Callback ─────────────────────────────────────────────────
+        // ── Trial Activation ───────────────────────────────────────────────────
 
-        private void ActivateAnomaly(AnomalyDefinition activeAnomaly, string stimulus)
+        private void ActivateAnomaly(AnomalyDefinition activeAnomaly)
         {
             _pendingActions    = 0;
             _activeActions.Clear();
@@ -224,6 +256,23 @@ namespace MetaFrame.State
         private void OnStateChanged(int fromIndex, int toIndex, DateTime _)
         {
             _currentStateIndex = toIndex;
+            EvaluateTriggers();
+        }
+
+        /// <summary>
+        /// Syncs GSM state and anomaly state from the cached trial anomaly.
+        /// Called automatically on Start() and OnEnable() so late-spawned objects
+        /// catch up without needing any external call.
+        /// </summary>
+        public void SyncState()
+        {
+            var gsm = GameStateManager.instance;
+            if (gsm == null) return;
+            _currentStateIndex = gsm.CurrentStateIndex;
+
+            bool isSelected      = _currentTrialAnomaly != null && _currentTrialAnomaly == anomalyToTrigger;
+            _currentAnomalyState = isSelected ? AnomalyState.Active : AnomalyState.Disabled;
+
             EvaluateTriggers();
         }
 

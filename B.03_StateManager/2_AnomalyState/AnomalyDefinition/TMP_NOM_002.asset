@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AnomalyDefinition
   id: TMP_NOM_002
   anomalyName: Delayed Transfer
-  domain: 0
-  type: 1
+  domain: 1
+  type: 2
   description: The object remains at source for ~1 second after being grasped and
     lifted, then snaps into the hand without a continuous physical transition.

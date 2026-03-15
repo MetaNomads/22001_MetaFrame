@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 3ecef68677d1f4f46a8a67836a8cba9e
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 117273
+  packageName: Non-Convex Mesh Collider. Automatic Generator
+  packageVersion: 2.0
+  assetPath: Assets/Plawius-NonConvexCollider/Editor/NonConvexEditor.asmdef
+  uploadId: 820208

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2d2264955d34c814a88b24c6c69d73aa
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 36300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 74311
+  packageName: Office and Police Station Pack (Modular)
+  packageVersion: 2.0.0
+  assetPath: Assets/OfficeAndPoliceStation/Scenes/OfficePack_Example/OcclusionCullingData.asset
+  uploadId: 696778

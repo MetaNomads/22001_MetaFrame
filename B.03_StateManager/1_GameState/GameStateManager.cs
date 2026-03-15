@@ -161,6 +161,13 @@ namespace MetaFrame.State
                 Debug.LogWarning("[GSM] ResetToIdleState: no idleState set and no slots available.");
         }
 
+        /// <summary>
+        /// Request a transition to a state by definition, respecting allowedFrom rules.
+        /// Exposed as a single-argument UnityEvent so it can be wired in the inspector —
+        /// drag a StateDefinition asset into the event's object field.
+        /// </summary>
+        public void RequestTransitionTo(StateDefinition to) => RequestTransition(to);
+
         private void ApplyTransition(int toIndex)
         {
             int      fromIndex = _currentIndex;

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AnomalyDefinition
   id: TMP_NOM_001
   anomalyName: Teleportation
-  domain: 0
-  type: 1
+  domain: 1
+  type: 2
   description: While reaching for the object, it vanishes from the platform and instantly
     appears in the hand with no movement through space.

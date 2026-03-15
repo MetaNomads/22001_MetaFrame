@@ -10,6 +10,7 @@ namespace MetaFrame.State
 
     public enum AnomalyDomain
     {
+        Normal,
         Temporal,
         Spatial,
         Auditory,
@@ -19,6 +20,7 @@ namespace MetaFrame.State
 
     public enum AnomalyType
     {
+        Normal,
         Metaphysical,
         Nomological,
         Conventional,
@@ -45,8 +47,8 @@ namespace MetaFrame.State
     [CustomEditor(typeof(AnomalyDefinition))]
     public class AnomalyDefinitionEditor : Editor
     {
-        private static readonly string[] DomainAbbr = { "TMP", "SPA", "AUD", "VIS", "TAC" };
-        private static readonly string[] TypeAbbr   = { "MET", "NOM", "CON" };
+        private static readonly string[] DomainAbbr = { "NRM", "TMP", "SPA", "AUD", "VIS", "TAC" };
+        private static readonly string[] TypeAbbr   = { "NRM", "MET", "NOM", "CON" };
 
         private SerializedProperty _id;
         private SerializedProperty _anomalyName;

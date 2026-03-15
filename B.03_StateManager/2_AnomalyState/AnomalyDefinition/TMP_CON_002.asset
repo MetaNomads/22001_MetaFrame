@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AnomalyDefinition
   id: TMP_CON_002
   anomalyName: Double Drop
-  domain: 0
-  type: 2
+  domain: 1
+  type: 3
   description: Pressing the button causes two objects to drop simultaneously onto
     the same platform, breaking the learned one-button-one-object expectation.
