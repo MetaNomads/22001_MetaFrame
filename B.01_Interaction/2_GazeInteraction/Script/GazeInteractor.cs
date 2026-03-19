@@ -19,6 +19,11 @@ namespace MetaFrame.Interaction.GazeInteraction
         [Header("realtime debugging")]
         [SerializeField]
         private bool showRayAndHitList = false;
+
+        [Tooltip("When enabled, the raycast will hit trigger colliders.\n" +
+                 "When disabled, trigger colliders are ignored regardless of the global Physics setting.")]
+        [SerializeField]
+        private bool hitTriggerColliders = false;
         [Header("display raycast hits list, DO NOT edit")]
         public List<GameObject> raycastHits = new List<GameObject>();
 
@@ -56,7 +61,11 @@ namespace MetaFrame.Interaction.GazeInteraction
         {
             //Shoot Raycast from this GameObject's transform
             RaycastHit hit;
-            if (Physics.Raycast(transform.position, transform.forward, out hit, Mathf.Infinity, ~layerMask))
+            QueryTriggerInteraction triggerInteraction = hitTriggerColliders
+                ? QueryTriggerInteraction.Collide
+                : QueryTriggerInteraction.Ignore;
+
+            if (Physics.Raycast(transform.position, transform.forward, out hit, Mathf.Infinity, ~layerMask, triggerInteraction))
             {
                 //For logging. It's inefficient so make sure to uncheck "Verbose Logging" in the inspector when not testing the script.
                 Log("Raycast has hit an object named: " + hit.transform.gameObject.name);

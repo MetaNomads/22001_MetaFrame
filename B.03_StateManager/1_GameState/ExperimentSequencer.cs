@@ -156,8 +156,10 @@ namespace MetaFrame.State
                 // → session_start → trial_start
                 if (!gsm.RequestTransition(stateSessionStart)) return;
                 OnSessionBegan?.Invoke(CurrentSession.sessionLabel);
-                if (!gsm.RequestTransition(stateTrialStart)) return;
+                // StartTrial FIRST so _currentTrial exists before the GSM transition
+                // fires OnStateChanged → EvaluateTriggers → any TriggerAnomaly calls.
                 StartTrial();
+                if (!gsm.RequestTransition(stateTrialStart)) return;
             }
             else
             {
@@ -170,8 +172,10 @@ namespace MetaFrame.State
                 if (_trialIndex < CurrentSession.TrialCount)
                 {
                     // More trials in this session → trial_start
-                    if (!gsm.RequestTransition(stateTrialStart)) return;
+                    // StartTrial FIRST so _currentTrial exists before the GSM transition
+                    // fires OnStateChanged → EvaluateTriggers → any TriggerAnomaly calls.
                     StartTrial();
+                    if (!gsm.RequestTransition(stateTrialStart)) return;
                 }
                 else
                 {

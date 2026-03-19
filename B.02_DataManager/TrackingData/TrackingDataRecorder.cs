@@ -184,29 +184,29 @@ namespace MetaFrame.Data
         private string CurrentStatus => GetCurrentStatus();
 
         [BoxGroup("Controls"), PropertyOrder(99)]
-        [Button("$GetActionButtonText", ButtonSizes.Large), ShowIf("startRecord")]
-        public void TogglePauseResume()
+        [Button("Pause", ButtonSizes.Large), ShowIf("@startRecord && !_isPaused")]
+        public void Pause()
         {
-            if (!startRecord) return;
-
-            _isPaused = !_isPaused;
-            Debug.Log($"[DataRecorder] Recording {(_isPaused ? "paused" : "resumed")}");
+            if (!startRecord || _isPaused) return;
+            _isPaused = true;
+            Debug.Log("[DataRecorder] Recording paused.");
         }
 
-        private string GetCurrentStatusLabel()
+        [BoxGroup("Controls"), PropertyOrder(99)]
+        [Button("Resume", ButtonSizes.Large), ShowIf("@startRecord && _isPaused")]
+        public void Resume()
         {
-            return "Status";
+            if (!startRecord || !_isPaused) return;
+            _isPaused = false;
+            Debug.Log("[DataRecorder] Recording resumed.");
         }
+
+        private string GetCurrentStatusLabel() => "Status";
 
         private string GetCurrentStatus()
         {
-            if (!startRecord) return "❌ Not Recording";
-            return _isPaused ? "⏸️ Paused" : "▶️ Recording";
-        }
-
-        private string GetActionButtonText()
-        {
-            return _isPaused ? "▶️ Resume" : "⏸️ Pause";
+            if (!startRecord) return "Not Recording";
+            return _isPaused ? "Paused" : "Recording";
         }
 
         private void CreateSessionDirectory()
