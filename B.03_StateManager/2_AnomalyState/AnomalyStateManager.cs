@@ -82,10 +82,17 @@ namespace MetaFrame.State
             bool anomalyResult   = (anomalyStates & anomalyState) != 0;
             bool conditionResult = EvaluateConditionGroup();
 
-            return EvaluateGroup(
+            bool final = EvaluateGroup(
                 (gameStateMode,    stateResult),
                 (anomalyStateMode, anomalyResult),
                 (conditionMode,    conditionResult));
+
+            Debug.Log($"[AnomalyTrigger] Evaluate — " +
+                $"gameState: mode={gameStateMode} index={stateIndex} current={currentStateIndex} result={stateResult} | " +
+                $"anomaly: mode={anomalyStateMode} expected={anomalyStates} current={anomalyState} result={anomalyResult} | " +
+                $"condition: mode={conditionMode} result={conditionResult} | FINAL={final}");
+
+            return final;
         }
 
         private static bool EvaluateGroup(params (ConditionMode mode, bool result)[] entries)
@@ -214,24 +221,22 @@ namespace MetaFrame.State
 
         private void Start()
         {
+            SetupObjectAtStart();
+            _started = true;
+        }
+
+        private void OnEnable()
+        {
             var gsm = GameStateManager.instance;
             if (gsm == null) { Debug.LogError("[ASM] No GameStateManager found!"); return; }
 
             gsm.OnStateChanged += OnStateChanged;
             _allAsms.Add(this);
-            SetupObjectAtStart();
-
             OnRegistered?.Invoke(this);
-            _started = true;
             SyncState();
         }
 
-        private void OnEnable()
-        {
-            if (_started) SyncState();
-        }
-
-        private void OnDestroy()
+        private void OnDisable()
         {
             var gsm = GameStateManager.instance;
             if (gsm != null)
@@ -241,16 +246,32 @@ namespace MetaFrame.State
             OnUnregistered?.Invoke(this);
         }
 
+        private void OnDestroy() { }  // OnDisable always runs before OnDestroy — cleanup handled there
+
         // ── Trial Activation ───────────────────────────────────────────────────
 
         private void ActivateAnomaly(AnomalyDefinition activeAnomaly)
         {
-            _pendingActions    = 0;
+            _pendingActions = 0;
             _activeActions.Clear();
-            _enteredTriggers.Clear();
+
+            // Fire onExit for every currently active trigger before resetting.
+            // Without this, external components wired to onExit (e.g. StopEvaluating,
+            // ResetTrigger on CollisionDetector) never run and are left in a stale state.
+            ExitAllActiveTriggers();
 
             bool isSelected = activeAnomaly != null && activeAnomaly == anomalyToTrigger;
             SetAnomalyState(isSelected ? AnomalyState.Active : AnomalyState.Disabled);
+        }
+
+        private void ExitAllActiveTriggers()
+        {
+            foreach (int i in _enteredTriggers)
+            {
+                if (i < triggers.Count)
+                    triggers[i].onExit?.Invoke();
+            }
+            _enteredTriggers.Clear();
         }
 
         private void OnStateChanged(int fromIndex, int toIndex, DateTime _)
@@ -295,17 +316,23 @@ namespace MetaFrame.State
 
             AnomalyState prev    = _currentAnomalyState;
             _currentAnomalyState = newState;
+            Debug.Log($"[ASM:{gameObject.name}] AnomalyState {prev} → {newState}");
             OnAnomalyStateChanged?.Invoke(this, prev, newState, DateTime.Now);
             EvaluateTriggers();
         }
 
         private void EvaluateTriggers()
         {
+            Debug.Log($"[ASM:{gameObject.name}] EvaluateTriggers — stateIndex={_currentStateIndex}, anomalyState={_currentAnomalyState}, triggers={triggers.Count}");
             for (int i = 0; i < triggers.Count; i++)
             {
                 var  trigger    = triggers[i];
                 bool passes     = trigger.Evaluate(_currentStateIndex, _currentAnomalyState);
                 bool wasActive  = _enteredTriggers.Contains(i);
+                string label    = string.IsNullOrEmpty(trigger.triggerName) ? $"[{i}]" : $"[{i}]'{trigger.triggerName}'";
+
+                Debug.Log($"[ASM:{gameObject.name}] Trigger {label} passes={passes} wasActive={wasActive} → " +
+                    (passes && !wasActive ? "FIRE onEnter" : !passes && wasActive ? "FIRE onExit" : "no change"));
 
                 if (passes && !wasActive)
                 {
@@ -353,6 +380,17 @@ namespace MetaFrame.State
         {
             if (_currentAnomalyState != AnomalyState.Active) return;
             SetAnomalyState(AnomalyState.Triggered);
+        }
+
+        /// <summary>
+        /// Immediately moves to Completed regardless of pending actions.
+        /// Use when the completion condition is met externally (e.g. collision,
+        /// gesture) and you don't need to wait for AnomalyActions to finish.
+        /// </summary>
+        public void CompleteAnomalyNow()
+        {
+            if (_currentAnomalyState != AnomalyState.Triggered) return;
+            SetAnomalyState(AnomalyState.Completed);
         }
 
         /// <summary>Editor debug only — bypass guards and force any anomaly state directly.</summary>

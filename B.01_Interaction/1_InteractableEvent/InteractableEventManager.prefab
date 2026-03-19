@@ -44,10 +44,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a0b36533a6b94a49ab5163766104674, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MetaNomads.Interaction.InteractableManager
-  isEnabledState: 1
-  OnEnabled:
-    m_PersistentCalls:
-      m_Calls: []
-  OnDisabled:
-    m_PersistentCalls:
-      m_Calls: []
+  Interactable: 
+  events: []
