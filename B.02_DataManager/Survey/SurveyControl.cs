@@ -188,11 +188,6 @@ public class SurveyControl : MonoBehaviour
 
     // =========================================================================
     // Plausibility sub-panel visibility
-    // Wire to detection toggles' OnValueChanged.
-    // =========================================================================
-
-    // =========================================================================
-    // Plausibility sub-panel visibility
     // Wire toggle_y and toggle_n OnValueChanged to OnDetectionChanged.
     // In the Inspector, select "Dynamic bool" so the toggle value is passed in.
     // =========================================================================
@@ -246,11 +241,29 @@ public class SurveyControl : MonoBehaviour
         Debug.Log("[SurveyControl] All selections cleared.");
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ResetGroup
+    //
+    // Two problems solved here:
+    //
+    // 1. Hierarchy bleed — GetComponentsInChildren finds ALL toggles under the
+    //    group's GameObject, including those belonging to sibling groups if the
+    //    hierarchy nests them. We guard with t.group == group so we only touch
+    //    toggles actually registered to THIS group.
+    //
+    // 2. allowSwitchOff — when false (Unity default), setting every toggle to
+    //    isOn=false causes Unity to snap the last one back to true, leaving a
+    //    ghost selection. We temporarily enable allowSwitchOff to permit a
+    //    fully-empty state, then restore the original value.
+    // ─────────────────────────────────────────────────────────────────────────
     private static void ResetGroup(ToggleGroup group)
     {
         if (group == null) return;
+        bool prev = group.allowSwitchOff;
+        group.allowSwitchOff = true;
         foreach (Toggle t in group.GetComponentsInChildren<Toggle>())
-            if (t != null) t.isOn = false;
+            if (t != null && t.group == group) t.isOn = false;
+        group.allowSwitchOff = prev;
     }
 
     // =========================================================================
@@ -268,31 +281,41 @@ public class SurveyControl : MonoBehaviour
     public void ResetAllGroups()
     {
         foreach (var group in allGroups)
-        {
-            if (group == null) continue;
-            foreach (Toggle t in group.GetComponentsInChildren<Toggle>())
-                if (t != null) t.isOn = false;
-        }
+            ResetGroup(group);
     }
 
-    /// <summary>
-    /// Scans child toggles directly rather than relying on ToggleGroup membership.
-    /// Avoids the issue where toggles have no Group field set in the Inspector.
-    /// </summary>
+    // ─────────────────────────────────────────────────────────────────────────
+    // AnyTogglesOnInGroup / GetToggleValue
+    //
+    // Previously used GetComponentsInChildren<Toggle>() on the ToggleGroup
+    // GameObject, which traverses the entire child hierarchy. When detection
+    // and confidence groups live inside the same parent panel, both methods
+    // would find each other's toggles — causing a confidence answer of "4"
+    // to appear as the detection value as well.
+    //
+    // Fix: use Unity's ToggleGroup APIs instead:
+    //   • group.AnyTogglesOn()   — true only if a toggle registered to THIS
+    //                              group is currently on.
+    //   • group.ActiveToggles()  — enumerates only on-toggles registered to
+    //                              THIS group, regardless of scene hierarchy.
+    //
+    // These work by group registration (each Toggle's m_Group field), so
+    // they are immune to nesting. The only requirement is that each Toggle's
+    // Group field is correctly set in the Inspector — which it must be for
+    // Unity's mutual-exclusion behaviour to work anyway.
+    // ─────────────────────────────────────────────────────────────────────────
+
     private static bool AnyTogglesOnInGroup(ToggleGroup group)
     {
         if (group == null) return false;
-        foreach (Toggle t in group.GetComponentsInChildren<Toggle>())
-            if (t != null && t.isOn) return true;
-        return false;
+        return group.AnyTogglesOn();
     }
 
-    private string GetToggleValue(ToggleGroup group)
+    private static string GetToggleValue(ToggleGroup group)
     {
         if (group == null) return null;
-        foreach (Toggle t in group.GetComponentsInChildren<Toggle>())
+        foreach (Toggle t in group.ActiveToggles())
         {
-            if (t == null || !t.isOn) continue;
             var id = t.GetComponent<ToggleID>();
             if (id != null) return id.value;
         }

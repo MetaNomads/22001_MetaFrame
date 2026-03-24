@@ -15,4 +15,5 @@ MonoBehaviour:
   modifiedAssetPathList:
   - Assets/Bakery/examples/content/sponza/sponza.FBX
   - Assets/A.02_MetaArch/Restaurant/McDonald's_ExportToUnity.skp
-  modifiedAssetPaddingHash: d6a958ff96d4612a
+  - Assets/A.01_MetaFrame/D.01_LevelDesign/Restaurant/McDonald's_ExportToUnity.skp
+  modifiedAssetPaddingHash: d6a958ff96d4612a844fcd7b
