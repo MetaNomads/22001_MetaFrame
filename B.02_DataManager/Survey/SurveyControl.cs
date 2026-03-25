@@ -48,8 +48,8 @@ public class SurveyControl : MonoBehaviour
     // ── Survey toggle groups ───────────────────────────────────────────────
 
     [Header("Survey Toggle Groups")]
-    [SerializeField] private Toggle      toggle_y;          // detection = Yes
-    [SerializeField] private Toggle      toggle_n;          // detection = No
+    [SerializeField] private Toggle toggle_y;          // detection = Yes
+    [SerializeField] private Toggle toggle_n;          // detection = No
     [SerializeField] private ToggleGroup detectionGroup;
     [SerializeField] private ToggleGroup confidenceGroup;
     [SerializeField] private ToggleGroup plausibilityGroup;
@@ -70,7 +70,7 @@ public class SurveyControl : MonoBehaviour
     // Runtime state
     // =========================================================================
 
-    private GateType    _gate               = GateType.None;
+    private GateType _gate = GateType.None;
     private ToggleGroup _activeConfirmGroup = null;  // which group the current confirmation gate checks
 
     public GateType CurrentGate => _gate;
@@ -140,7 +140,7 @@ public class SurveyControl : MonoBehaviour
     /// </summary>
     public void TutorialSetup()
     {
-        _gate               = GateType.Confirmation;
+        _gate = GateType.Confirmation;
         _activeConfirmGroup = tutorialGroup;
         SetActivePanel(tutorialPanel);
         onTutorialSetup?.Invoke();
@@ -153,7 +153,7 @@ public class SurveyControl : MonoBehaviour
     /// </summary>
     public void BreakSetup()
     {
-        _gate               = GateType.Confirmation;
+        _gate = GateType.Confirmation;
         _activeConfirmGroup = breakGroup;
         SetActivePanel(breakPanel);
         onBreakSetup?.Invoke();
@@ -166,7 +166,7 @@ public class SurveyControl : MonoBehaviour
     /// </summary>
     public void SurveySetup()
     {
-        _gate               = GateType.Survey;
+        _gate = GateType.Survey;
         _activeConfirmGroup = null;
         surveyDataRecorder.StartReport();
         SetActivePanel(surveyPanel);
@@ -180,7 +180,7 @@ public class SurveyControl : MonoBehaviour
     /// </summary>
     public void ExperimentEndSetup()
     {
-        _gate               = GateType.None;
+        _gate = GateType.None;
         _activeConfirmGroup = null;
         SetActivePanel(experimentEndPanel);
         onExperimentEndSetup?.Invoke();
@@ -222,18 +222,25 @@ public class SurveyControl : MonoBehaviour
     }
 
     // =========================================================================
-    // ClearSelection — resets all toggle groups and survey data after proceed.
-    // Every referenced group is reset explicitly — no reliance on allGroups list.
+    // ClearSelection
+    //
+    // Clears every toggle on every panel — active or inactive — after Step().
+    // Calls ClearPanel() on each named panel reference directly because the
+    // panels live on separate scene branches, not as children of SurveyControl.
+    //
+    // ClearPanel also calls ResetVisual() on every ToggleOculusColorVisual so
+    // the ON color property block is removed immediately. Without this, hidden
+    // panels lose their onValueChanged listener (OnDisable), so setting isOn=false
+    // never triggers StopCustom(), leaving the ON color on the renderer and
+    // causing a one-frame flash when the panel next becomes visible.
     // =========================================================================
 
     public void ClearSelection()
     {
-        ResetGroup(tutorialGroup);
-        ResetGroup(breakGroup);
-        ResetGroup(endGroup);
-        ResetGroup(detectionGroup);
-        ResetGroup(confidenceGroup);
-        ResetGroup(plausibilityGroup);
+        ClearPanel(tutorialPanel);
+        ClearPanel(breakPanel);
+        ClearPanel(experimentEndPanel);
+        ClearPanel(surveyPanel);   // covers plausibilityPanel as a child
 
         if (plausibilityPanel != null) plausibilityPanel.SetActive(false);
         surveyDataRecorder.Reset();
@@ -241,29 +248,32 @@ public class SurveyControl : MonoBehaviour
         Debug.Log("[SurveyControl] All selections cleared.");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // ResetGroup
-    //
-    // Two problems solved here:
-    //
-    // 1. Hierarchy bleed — GetComponentsInChildren finds ALL toggles under the
-    //    group's GameObject, including those belonging to sibling groups if the
-    //    hierarchy nests them. We guard with t.group == group so we only touch
-    //    toggles actually registered to THIS group.
-    //
-    // 2. allowSwitchOff — when false (Unity default), setting every toggle to
-    //    isOn=false causes Unity to snap the last one back to true, leaving a
-    //    ghost selection. We temporarily enable allowSwitchOff to permit a
-    //    fully-empty state, then restore the original value.
-    // ─────────────────────────────────────────────────────────────────────────
-    private static void ResetGroup(ToggleGroup group)
+    // Turns off every toggle inside a panel (including inactive children) and
+    // immediately resets each toggle's color visual so no flash occurs when the
+    // panel next becomes active.
+    private static void ClearPanel(GameObject panel)
     {
-        if (group == null) return;
-        bool prev = group.allowSwitchOff;
-        group.allowSwitchOff = true;
-        foreach (Toggle t in group.GetComponentsInChildren<Toggle>())
-            if (t != null && t.group == group) t.isOn = false;
-        group.allowSwitchOff = prev;
+        if (panel == null) return;
+
+        // Allow all groups to have nothing selected.
+        foreach (var group in panel.GetComponentsInChildren<ToggleGroup>(true))
+            group.allowSwitchOff = true;
+
+        // Set every toggle off and reset its color visual explicitly.
+        // Only call ClearPropertyBlock() for inactive toggles. Active toggles
+        // already had OnToggleChanged(false) fire via their listener, which ran
+        // StopCustom() and re-enabled oculusColorVisual. Calling ClearPropertyBlock()
+        // on top of that wipes what oculusColorVisual just wrote on re-enable,
+        // leaving neither system owning the renderer for at least one frame (flash).
+        foreach (var t in panel.GetComponentsInChildren<Toggle>(true))
+        {
+            t.isOn = false;
+            if (!t.gameObject.activeInHierarchy)
+            {
+                var visual = t.GetComponent<ToggleOculusColorVisual>();
+                if (visual != null) visual.ClearPropertyBlock();
+            }
+        }
     }
 
     // =========================================================================
@@ -272,17 +282,13 @@ public class SurveyControl : MonoBehaviour
 
     private void SetActivePanel(GameObject target)
     {
-        tutorialPanel?     .SetActive(tutorialPanel      == target);
-        breakPanel?        .SetActive(breakPanel         == target);
-        surveyPanel?       .SetActive(surveyPanel        == target);
+        tutorialPanel?.SetActive(tutorialPanel == target);
+        breakPanel?.SetActive(breakPanel == target);
+        surveyPanel?.SetActive(surveyPanel == target);
         experimentEndPanel?.SetActive(experimentEndPanel == target);
     }
 
-    public void ResetAllGroups()
-    {
-        foreach (var group in allGroups)
-            ResetGroup(group);
-    }
+    public void ResetAllGroups() => ClearSelection();
 
     // ─────────────────────────────────────────────────────────────────────────
     // AnyTogglesOnInGroup / GetToggleValue

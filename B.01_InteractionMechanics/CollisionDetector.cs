@@ -214,7 +214,6 @@ public class CollisionTrigger : MonoBehaviour
     private void OnContactStay()
     {
         if (_evalMode == EvalMode.None) return;
-        Debug.Log($"[CollisionTrigger] OnContactStay — evalMode={_evalMode}.");
         TryEvaluate();
     }
 
@@ -227,7 +226,7 @@ public class CollisionTrigger : MonoBehaviour
     private void TryEvaluate()
     {
         if (_evalMode == EvalMode.None) return;
-        if (_evaluateSpent) { Debug.Log("[CollisionTrigger] OnEvaluate skipped — spent."); return; }
+        if (_evaluateSpent) return;
 
         if (_evalMode == EvalMode.Once)
         {
