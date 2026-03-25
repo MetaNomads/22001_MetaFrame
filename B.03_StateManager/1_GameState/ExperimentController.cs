@@ -14,47 +14,33 @@ public class ExperimentController : MonoBehaviour
     [SerializeField] private ExperimentDataRecorder recorder;
     [SerializeField] private SurveyControl          surveyControl;
 
-    [Tooltip("When unchecked, confirmation gates (tutorial / break panels) are bypassed for development.\n" +
-             "The survey gate (detection + confidence + plausibility) is ALWAYS enforced regardless of this flag.")]
-    [SerializeField] private bool requireGate = true;
+    private void OnEnable()  { }
+    private void OnDisable() { }
 
     // =========================================================================
     // Step — always called by the physical button
     //
-    // Gate logic:
-    //   • Survey panels  — gate is ALWAYS enforced; incomplete data must never
-    //                      be recorded regardless of the requireGate flag.
-    //   • Other panels   — gate is enforced only when requireGate is true.
-    //
-    // ClearSelection is only called after we have confirmed we can proceed,
-    // so a blocked step never wipes the participant's current answers.
+    // Order:
+    //   1. Gate check     — block if survey incomplete
+    //   2. Push()         — snapshot toggle values while panel is visible
+    //   3. Capture()      — commit to _currentTrial NOW, before Advance() fires
+    //                       OnTrialEnded which nulls _currentTrial inside
+    //                       ExperimentDataRecorder — after that CaptureSurvey()
+    //                       silently exits because _currentTrial is null
+    //   4. Advance()      — GSM transitions; OnTrialEnded fires inside here
+    //   5. ClearSelection — reset toggles and visuals only on success
     // =========================================================================
 
     public void Step()
     {
-        if (surveyControl != null)
-        {
-            bool isSurvey = surveyControl.CurrentGate == SurveyControl.GateType.Survey;
+        if (surveyControl != null && !surveyControl.CanProceed()) return;
 
-            // Survey gate: always checked — requireGate does not bypass it.
-            // Other gates: only checked when requireGate is true.
-            if (isSurvey || requireGate)
-            {
-                if (!surveyControl.CanProceed())
-                    return;
-            }
+        surveyControl?.Push();
+        surveyControl?.Capture(recorder);
 
-            // We are cleared to proceed — record data before clearing UI state.
-            if (isSurvey)
-            {
-                surveyControl.PushToRecorder();
-                recorder?.CaptureSurvey();
-            }
+        if (!sequencer.Advance()) return;
 
-            surveyControl.ClearSelection();
-        }
-
-        sequencer.Advance();
+        surveyControl?.ClearSelection();
     }
 }
 

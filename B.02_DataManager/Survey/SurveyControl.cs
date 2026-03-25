@@ -30,37 +30,28 @@ public class SurveyControl : MonoBehaviour
     [Tooltip("Shown inside surveyPanel when detection = Yes and confidence is answered.")]
     [SerializeField] private GameObject plausibilityPanel;
 
-    // ── Confirmation toggle groups ─────────────────────────────────────────
-    // Each boundary panel has its own toggle group.
-    // The participant must select something before the physical button proceeds.
-    // End panel has a group too but it has no gate — it is display only.
-
     [Header("Confirmation Toggle Groups")]
-    [Tooltip("Toggle group on the tutorial panel. Must have a selection to proceed.")]
     [SerializeField] private ToggleGroup tutorialGroup;
-
-    [Tooltip("Toggle group on the break panel. Must have a selection to proceed.")]
     [SerializeField] private ToggleGroup breakGroup;
-
-    [Tooltip("Toggle group on the end panel. Display only — no gate.")]
     [SerializeField] private ToggleGroup endGroup;
 
-    // ── Survey toggle groups ───────────────────────────────────────────────
-
     [Header("Survey Toggle Groups")]
-    [SerializeField] private Toggle toggle_y;          // detection = Yes
-    [SerializeField] private Toggle toggle_n;          // detection = No
+    [SerializeField] private Toggle toggle_y;
+    [SerializeField] private Toggle toggle_n;
     [SerializeField] private ToggleGroup detectionGroup;
     [SerializeField] private ToggleGroup confidenceGroup;
     [SerializeField] private ToggleGroup plausibilityGroup;
 
-    [Header("All Toggle Groups (for reset)")]
-    [SerializeField] private List<ToggleGroup> allGroups = new();
+    [Header("All Toggles (drag every toggle here)")]
+    [Tooltip("Drag every Toggle in the experiment into this list. " +
+             "ClearSelection uses direct references so inactive toggles " +
+             "(panels currently hidden) are always reached.")]
+    [SerializeField] private List<Toggle> allToggles = new();
 
     [Header("Survey Data")]
     [SerializeField] private SurveyDataRecorder surveyDataRecorder;
 
-    [Header("Setup Events — fire after each setup completes")]
+    [Header("Setup Events")]
     [SerializeField] private UnityEvent onTutorialSetup;
     [SerializeField] private UnityEvent onBreakSetup;
     [SerializeField] private UnityEvent onSurveySetup;
@@ -70,13 +61,31 @@ public class SurveyControl : MonoBehaviour
     // Runtime state
     // =========================================================================
 
-    private GateType _gate = GateType.None;
-    private ToggleGroup _activeConfirmGroup = null;  // which group the current confirmation gate checks
+    private GateType    _gate               = GateType.None;
+    private ToggleGroup _activeConfirmGroup = null;
 
     public GateType CurrentGate => _gate;
 
     // =========================================================================
-    // Single proceed gate — ExperimentController calls only this
+    // Lifecycle
+    // =========================================================================
+
+    private void Start()
+    {
+        // Subscribe to all survey toggles so the first interaction stamps reportStart.
+        // StartReport() is idempotent — only the first call per trial sets the time.
+        // Reset() in ClearSelection() nulls _reportStart, re-arming it each trial.
+        foreach (var t in allToggles)
+        {
+            if (t != null)
+                t.onValueChanged.AddListener(_ => surveyDataRecorder.StartReport());
+        }
+
+        ClearSelection();
+    }
+
+    // =========================================================================
+    // Gate
     // =========================================================================
 
     public bool CanProceed()
@@ -89,16 +98,12 @@ public class SurveyControl : MonoBehaviour
             case GateType.Confirmation:
                 if (_activeConfirmGroup == null)
                 {
-                    Debug.LogWarning("[SurveyControl] Cannot proceed — no confirmation group assigned for this panel.");
+                    Debug.LogWarning("[SurveyControl] Cannot proceed — no confirmation group assigned.");
                     return false;
                 }
                 bool anyOn = AnyTogglesOnInGroup(_activeConfirmGroup);
                 Debug.Log($"[SurveyControl] Confirmation check — group: '{_activeConfirmGroup.name}', AnyOn: {anyOn}");
-                if (!anyOn)
-                {
-                    Debug.LogWarning("[SurveyControl] Cannot proceed — please make a selection on the panel.");
-                    return false;
-                }
+                if (!anyOn) { Debug.LogWarning("[SurveyControl] Cannot proceed — make a selection."); return false; }
                 return true;
 
             case GateType.Survey:
@@ -112,168 +117,159 @@ public class SurveyControl : MonoBehaviour
     private bool EvaluateSurveyGate()
     {
         if (!AnyTogglesOnInGroup(detectionGroup))
-        {
-            Debug.LogWarning("[SurveyControl] Cannot proceed — detection not answered.");
-            return false;
-        }
+            { Debug.LogWarning("[SurveyControl] Detection not answered."); return false; }
         if (!AnyTogglesOnInGroup(confidenceGroup))
-        {
-            Debug.LogWarning("[SurveyControl] Cannot proceed — confidence not answered.");
-            return false;
-        }
+            { Debug.LogWarning("[SurveyControl] Confidence not answered."); return false; }
         if (toggle_y.isOn && !AnyTogglesOnInGroup(plausibilityGroup))
-        {
-            Debug.LogWarning("[SurveyControl] Cannot proceed — plausibility not answered (required when detection = Yes).");
-            return false;
-        }
+            { Debug.LogWarning("[SurveyControl] Plausibility not answered."); return false; }
         return true;
     }
 
     // =========================================================================
     // Setup methods — wire to GSM state OnEnter events
+    //
+    // ClearSelection is called from Step() after Advance() completes.
+    // Setup methods only activate the correct panel — the panel opens clean
+    // because ClearSelection already ran.
     // =========================================================================
 
-    /// <summary>
-    /// Gate: Confirmation via tutorialGroup.
-    /// Participant must select a toggle before the physical button proceeds.
-    /// Wire to GSM tutorial state OnEnter.
-    /// </summary>
     public void TutorialSetup()
     {
-        _gate = GateType.Confirmation;
-        _activeConfirmGroup = tutorialGroup;
         SetActivePanel(tutorialPanel);
+        _gate               = GateType.Confirmation;
+        _activeConfirmGroup = tutorialGroup;
         onTutorialSetup?.Invoke();
     }
 
-    /// <summary>
-    /// Gate: Confirmation via breakGroup.
-    /// Participant must select a toggle before the physical button proceeds.
-    /// Wire to GSM idle (break) state OnEnter.
-    /// </summary>
     public void BreakSetup()
     {
-        _gate = GateType.Confirmation;
-        _activeConfirmGroup = breakGroup;
         SetActivePanel(breakPanel);
+        _gate               = GateType.Confirmation;
+        _activeConfirmGroup = breakGroup;
         onBreakSetup?.Invoke();
     }
 
-    /// <summary>
-    /// Gate: Survey — detection + confidence always required;
-    ///               plausibility required when detection = Yes.
-    /// Wire to GSM trial-start state OnEnter.
-    /// </summary>
     public void SurveySetup()
     {
-        _gate = GateType.Survey;
-        _activeConfirmGroup = null;
-        surveyDataRecorder.StartReport();
         SetActivePanel(surveyPanel);
+        _gate               = GateType.Survey;
+        _activeConfirmGroup = null;
         onSurveySetup?.Invoke();
     }
 
-    /// <summary>
-    /// Gate: None — physical button cannot proceed (experiment is over).
-    /// endGroup is shown for display only, no gate check.
-    /// Wire to GSM experiment-end state OnEnter.
-    /// </summary>
     public void ExperimentEndSetup()
     {
-        _gate = GateType.None;
-        _activeConfirmGroup = null;
         SetActivePanel(experimentEndPanel);
+        _gate               = GateType.None;
+        _activeConfirmGroup = null;
         onExperimentEndSetup?.Invoke();
     }
 
     // =========================================================================
-    // Plausibility sub-panel visibility
-    // Wire toggle_y and toggle_n OnValueChanged to OnDetectionChanged.
-    // In the Inspector, select "Dynamic bool" so the toggle value is passed in.
+    // Plausibility visibility — mid-trial, does not reset selection
     // =========================================================================
 
-    /// <summary>Dynamic bool — wire directly to toggle_y and toggle_n OnValueChanged.</summary>
-    public void OnDetectionChanged(bool _)
-    {
-        OnDetectionChanged();
-    }
+    public void OnDetectionChanged(bool _) => OnDetectionChanged();
 
     public void OnDetectionChanged()
     {
-        if (plausibilityPanel == null)
-        {
-            Debug.LogWarning("[SurveyControl] plausibilityPanel is not assigned.");
-            return;
-        }
+        if (plausibilityPanel == null) { Debug.LogWarning("[SurveyControl] plausibilityPanel not assigned."); return; }
         bool show = toggle_y != null && toggle_y.isOn;
         plausibilityPanel.SetActive(show);
-        Debug.Log($"[SurveyControl] OnDetectionChanged — toggle_y.isOn={toggle_y?.isOn}, showing plausibility: {show}");
+        Debug.Log($"[SurveyControl] OnDetectionChanged — showing plausibility: {show}");
     }
 
     // =========================================================================
-    // Data push — called by ExperimentController just before CaptureSurvey()
+    // Push / Capture — called separately from Step()
+    //
+    // Push()    — snapshots toggle values into surveyDataRecorder while the
+    //             panel is still visible. Call BEFORE Advance().
+    // Capture() — commits the snapshot to the experiment record. Call AFTER
+    //             Advance() succeeds so data is only recorded on a valid step.
+    //
+    // Splitting these means: if Advance() fails (GSM blocked), the snapshot
+    // sits in surveyDataRecorder but is never committed. ClearSelection is
+    // also skipped, so the UI remains unchanged and the participant can retry.
     // =========================================================================
 
-    public void PushToRecorder()
+    public void Push()
     {
+        if (_gate != GateType.Survey) return;
         surveyDataRecorder.SetDetection(GetToggleValue(detectionGroup));
         surveyDataRecorder.SetConfidence(GetToggleValue(confidenceGroup));
         surveyDataRecorder.SetPlausibility(toggle_y.isOn ? GetToggleValue(plausibilityGroup) : null);
     }
 
+    public void Capture(ExperimentDataRecorder recorder)
+    {
+        recorder?.CaptureSurvey();
+    }
+
+    // Kept for backwards compatibility if called elsewhere.
+    public void PushAndCapture(ExperimentDataRecorder recorder)
+    {
+        Push();
+        Capture(recorder);
+    }
+
+    // =========================================================================
+    // ClearSelection — the single authoritative reset
+    //
+    // Called externally at the end of each trial. Resets all toggle state and
+    // visuals across all panels, active or inactive.
+    //
+    // For each toggle in allToggles:
+    //   1. group.allowSwitchOff = true  — let the group have nothing selected
+    //   2. t.isOn = false               — clear selection state
+    //      • Active toggle:   fires onValueChanged → OnToggleChanged(false) →
+    //                         StopCustom (clears property block) + re-enables
+    //                         oculusColorVisual via the original logic
+    //      • Inactive toggle: no event fires (listener removed in OnDisable)
+    //   3. ClearPropertyBlock()         — explicitly clears the renderer property
+    //                                    block and resyncs currentColor on ALL
+    //                                    toggles. For active ones this is a safe
+    //                                    redundant cleanup. For inactive ones this
+    //                                    is the primary visual reset since no
+    //                                    event fired in step 2.
+    //
+    // After this, when a setup method activates a panel, OnEnable fires on each
+    // ToggleOculusColorVisual → OnToggleChanged(false) → oculusColorVisual
+    // re-enabled and drives the correct Normal state color (poke interaction
+    // ended long before the next setup runs).
+    // =========================================================================
+
     // =========================================================================
     // ClearSelection
     //
-    // Clears every toggle on every panel — active or inactive — after Step().
-    // Calls ClearPanel() on each named panel reference directly because the
-    // panels live on separate scene branches, not as children of SurveyControl.
+    // Uses isOn = false (full Unity Toggle.Set path) so group logic and isOn
+    // state are always cleared correctly on both active and inactive toggles.
     //
-    // ClearPanel also calls ResetVisual() on every ToggleOculusColorVisual so
-    // the ON color property block is removed immediately. Without this, hidden
-    // panels lose their onValueChanged listener (OnDisable), so setting isOn=false
-    // never triggers StopCustom(), leaving the ON color on the renderer and
-    // causing a one-frame flash when the panel next becomes visible.
+    // SetClearing(true) is set before isOn = false so OnToggleChanged(false)
+    // skips cycling oculusColorVisual — which would trigger Oculus.OnEnable
+    // and re-apply the cached OVR Select state from a recent poke.
+    // ClearPropertyBlock() then clears the ON color and re-enables
+    // oculusColorVisual cleanly after the event has fired.
     // =========================================================================
 
     public void ClearSelection()
     {
-        ClearPanel(tutorialPanel);
-        ClearPanel(breakPanel);
-        ClearPanel(experimentEndPanel);
-        ClearPanel(surveyPanel);   // covers plausibilityPanel as a child
+        foreach (var t in allToggles)
+        {
+            if (t == null) continue;
+            if (t.group != null) t.group.allowSwitchOff = true;
+
+            var visual = t.GetComponent<ToggleOculusColorVisual>();
+            if (visual != null) visual.SetClearing(true);
+            t.isOn = false;
+            if (visual != null)
+            {
+                visual.SetClearing(false);
+                visual.ClearPropertyBlock();
+            }
+        }
 
         if (plausibilityPanel != null) plausibilityPanel.SetActive(false);
         surveyDataRecorder.Reset();
-
-        Debug.Log("[SurveyControl] All selections cleared.");
-    }
-
-    // Turns off every toggle inside a panel (including inactive children) and
-    // immediately resets each toggle's color visual so no flash occurs when the
-    // panel next becomes active.
-    private static void ClearPanel(GameObject panel)
-    {
-        if (panel == null) return;
-
-        // Allow all groups to have nothing selected.
-        foreach (var group in panel.GetComponentsInChildren<ToggleGroup>(true))
-            group.allowSwitchOff = true;
-
-        // Set every toggle off and reset its color visual explicitly.
-        // Only call ClearPropertyBlock() for inactive toggles. Active toggles
-        // already had OnToggleChanged(false) fire via their listener, which ran
-        // StopCustom() and re-enabled oculusColorVisual. Calling ClearPropertyBlock()
-        // on top of that wipes what oculusColorVisual just wrote on re-enable,
-        // leaving neither system owning the renderer for at least one frame (flash).
-        foreach (var t in panel.GetComponentsInChildren<Toggle>(true))
-        {
-            t.isOn = false;
-            if (!t.gameObject.activeInHierarchy)
-            {
-                var visual = t.GetComponent<ToggleOculusColorVisual>();
-                if (visual != null) visual.ClearPropertyBlock();
-            }
-        }
     }
 
     // =========================================================================
@@ -289,27 +285,6 @@ public class SurveyControl : MonoBehaviour
     }
 
     public void ResetAllGroups() => ClearSelection();
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // AnyTogglesOnInGroup / GetToggleValue
-    //
-    // Previously used GetComponentsInChildren<Toggle>() on the ToggleGroup
-    // GameObject, which traverses the entire child hierarchy. When detection
-    // and confidence groups live inside the same parent panel, both methods
-    // would find each other's toggles — causing a confidence answer of "4"
-    // to appear as the detection value as well.
-    //
-    // Fix: use Unity's ToggleGroup APIs instead:
-    //   • group.AnyTogglesOn()   — true only if a toggle registered to THIS
-    //                              group is currently on.
-    //   • group.ActiveToggles()  — enumerates only on-toggles registered to
-    //                              THIS group, regardless of scene hierarchy.
-    //
-    // These work by group registration (each Toggle's m_Group field), so
-    // they are immune to nesting. The only requirement is that each Toggle's
-    // Group field is correctly set in the Inspector — which it must be for
-    // Unity's mutual-exclusion behaviour to work anyway.
-    // ─────────────────────────────────────────────────────────────────────────
 
     private static bool AnyTogglesOnInGroup(ToggleGroup group)
     {

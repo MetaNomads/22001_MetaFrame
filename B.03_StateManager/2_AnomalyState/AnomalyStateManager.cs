@@ -87,11 +87,6 @@ namespace MetaFrame.State
                 (anomalyStateMode, anomalyResult),
                 (conditionMode,    conditionResult));
 
-            Debug.Log($"[AnomalyTrigger] Evaluate — " +
-                $"gameState: mode={gameStateMode} index={stateIndex} current={currentStateIndex} result={stateResult} | " +
-                $"anomaly: mode={anomalyStateMode} expected={anomalyStates} current={anomalyState} result={anomalyResult} | " +
-                $"condition: mode={conditionMode} result={conditionResult} | FINAL={final}");
-
             return final;
         }
 
@@ -228,7 +223,6 @@ namespace MetaFrame.State
         private void OnEnable()
         {
             var gsm = GameStateManager.instance;
-            if (gsm == null) { Debug.LogError("[ASM] No GameStateManager found!"); return; }
 
             gsm.OnStateChanged += OnStateChanged;
             _allAsms.Add(this);
@@ -309,30 +303,24 @@ namespace MetaFrame.State
                     CancelAllActions();
                 else
                 {
-                    Debug.LogWarning($"[ASM] State change to {newState} ignored — {_pendingActions} action(s) still running on '{gameObject.name}'.");
                     return;
                 }
             }
 
             AnomalyState prev    = _currentAnomalyState;
             _currentAnomalyState = newState;
-            Debug.Log($"[ASM:{gameObject.name}] AnomalyState {prev} → {newState}");
             OnAnomalyStateChanged?.Invoke(this, prev, newState, DateTime.Now);
             EvaluateTriggers();
         }
 
         private void EvaluateTriggers()
         {
-            Debug.Log($"[ASM:{gameObject.name}] EvaluateTriggers — stateIndex={_currentStateIndex}, anomalyState={_currentAnomalyState}, triggers={triggers.Count}");
             for (int i = 0; i < triggers.Count; i++)
             {
                 var  trigger    = triggers[i];
                 bool passes     = trigger.Evaluate(_currentStateIndex, _currentAnomalyState);
                 bool wasActive  = _enteredTriggers.Contains(i);
                 string label    = string.IsNullOrEmpty(trigger.triggerName) ? $"[{i}]" : $"[{i}]'{trigger.triggerName}'";
-
-                Debug.Log($"[ASM:{gameObject.name}] Trigger {label} passes={passes} wasActive={wasActive} → " +
-                    (passes && !wasActive ? "FIRE onEnter" : !passes && wasActive ? "FIRE onExit" : "no change"));
 
                 if (passes && !wasActive)
                 {

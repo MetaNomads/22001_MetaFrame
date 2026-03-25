@@ -12,9 +12,7 @@ namespace MetaNomads.Interaction
 
         private void OnTriggerEnter(Collider other)
         {
-            Debug.Log($"[UnlockZone] OnTriggerEnter — {other.gameObject.name}");
             var grab = other.GetComponentInParent<LockableHandGrab>();
-            Debug.Log($"[UnlockZone] grab found: {grab != null}");
             grab?.AllowRelease();
         }
 

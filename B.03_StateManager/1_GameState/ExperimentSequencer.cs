@@ -147,24 +147,31 @@ namespace MetaFrame.State
 
         // ── Advance ────────────────────────────────────────────────────────────────
     
-        public void Advance()
+        /// <summary>
+        /// Drives the experiment forward one beat.
+        /// Returns true if the first GSM transition succeeded — i.e. the step
+        /// was accepted and the experiment state has moved forward.
+        /// Returns false if the transition was blocked by GSM allowedFrom rules,
+        /// in which case no state has changed and callers should not record or clear.
+        /// </summary>
+        public bool Advance()
         {
             var current = gsm.CurrentStateDefinition;
     
             if (current == stateExperimentStart || current == stateIdle)
             {
                 // → session_start → trial_start
-                if (!gsm.RequestTransition(stateSessionStart)) return;
+                if (!gsm.RequestTransition(stateSessionStart)) return false;
                 OnSessionBegan?.Invoke(CurrentSession.sessionLabel);
                 // StartTrial FIRST so _currentTrial exists before the GSM transition
                 // fires OnStateChanged → EvaluateTriggers → any TriggerAnomaly calls.
                 StartTrial();
-                if (!gsm.RequestTransition(stateTrialStart)) return;
+                if (!gsm.RequestTransition(stateTrialStart)) return false;
             }
             else
             {
-                // Mid-trial → trial_end
-                if (!gsm.RequestTransition(stateTrialEnd)) return;
+                // Mid-trial → trial_end. This is the gate: if blocked, nothing moves.
+                if (!gsm.RequestTransition(stateTrialEnd)) return false;
                 AnomalyStateManager.BroadcastTrialEnded();
                 OnTrialEnded?.Invoke();
                 _trialIndex++;
@@ -175,12 +182,12 @@ namespace MetaFrame.State
                     // StartTrial FIRST so _currentTrial exists before the GSM transition
                     // fires OnStateChanged → EvaluateTriggers → any TriggerAnomaly calls.
                     StartTrial();
-                    if (!gsm.RequestTransition(stateTrialStart)) return;
+                    if (!gsm.RequestTransition(stateTrialStart)) return false;
                 }
                 else
                 {
                     // Session complete → session_end
-                    if (!gsm.RequestTransition(stateSessionEnd)) return;
+                    if (!gsm.RequestTransition(stateSessionEnd)) return false;
                     OnSessionEnded?.Invoke();
                     _sessionIndex++;
                     _trialIndex = 0;
@@ -192,6 +199,7 @@ namespace MetaFrame.State
                         {
                             _sessionIndex--;
                             Debug.LogError("[Sequencer] Failed to transition to idle — session index rolled back.");
+                            return false;
                         }
                     }
                     else
@@ -201,6 +209,7 @@ namespace MetaFrame.State
                         {
                             _sessionIndex--;
                             Debug.LogError("[Sequencer] Failed to transition to experiment_end — session index rolled back.");
+                            return false;
                         }
                         else
                         {
@@ -209,6 +218,8 @@ namespace MetaFrame.State
                     }
                 }
             }
+
+            return true;
         }
     
         // ── Init ───────────────────────────────────────────────────────────────────

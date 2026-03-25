@@ -38,6 +38,13 @@ public class ToggleOculusColorVisual : MonoBehaviour
     private int colorID;
     private Color currentColor;
 
+    // Set true by ClearSelection before t.isOn = false, false after.
+    // Prevents OnToggleChanged(false) from cycling oculusColorVisual during
+    // a reset — ClearPropertyBlock re-enables it safely after the loop.
+    private bool _clearing = false;
+
+    public void SetClearing(bool value) => _clearing = value;
+
     void Awake()
     {
         toggle = GetComponent<Toggle>();
@@ -48,14 +55,12 @@ public class ToggleOculusColorVisual : MonoBehaviour
         if (targetRenderer == null)
             targetRenderer = GetComponent<Renderer>();
 
-        block = new MaterialPropertyBlock();
+        block   = new MaterialPropertyBlock();
         colorID = Shader.PropertyToID(colorProperty);
 
-        // ✅ Initialize current color properly
         if (targetRenderer != null)
         {
             targetRenderer.GetPropertyBlock(block);
-
             if (block.HasColor(colorID))
                 currentColor = block.GetColor(colorID);
             else if (targetRenderer.sharedMaterial != null &&
@@ -69,8 +74,6 @@ public class ToggleOculusColorVisual : MonoBehaviour
     void OnEnable()
     {
         toggle.onValueChanged.AddListener(OnToggleChanged);
-
-        // Sync visual with current state
         OnToggleChanged(toggle.isOn);
     }
 
@@ -83,23 +86,26 @@ public class ToggleOculusColorVisual : MonoBehaviour
     {
         if (isOn)
         {
-            // Disable Oculus visual control
             if (oculusColorVisual != null)
                 oculusColorVisual.enabled = false;
-
             PlayOn();
         }
         else
         {
-            // Stop custom animation + clear override FIRST
             StopCustom();
 
-            // Re-enable Oculus visual system
-            if (oculusColorVisual != null)
+            if (!_clearing)
             {
-                oculusColorVisual.enabled = false; // force refresh
-                oculusColorVisual.enabled = true;
+                // Normal mid-trial deselect — cycle oculusColorVisual so Oculus
+                // drives Normal/hover state for this button.
+                if (oculusColorVisual != null)
+                {
+                    oculusColorVisual.enabled = false;
+                    oculusColorVisual.enabled = true;
+                }
             }
+            // _clearing=true: skip cycle. ClearPropertyBlock re-enables
+            // oculusColorVisual after the full reset loop completes.
         }
     }
 
@@ -109,51 +115,47 @@ public class ToggleOculusColorVisual : MonoBehaviour
     {
         if (routine != null)
             StopCoroutine(routine);
-
         routine = StartCoroutine(AnimateOn());
     }
 
     private void StopCustom()
     {
-        if (routine != null)
-        {
-            StopCoroutine(routine);
-            routine = null;
-        }
+        if (routine != null) { StopCoroutine(routine); routine = null; }
 
-        if (targetRenderer != null)
-            targetRenderer.SetPropertyBlock(null);
-    }
-
-    /// <summary>
-    /// Safe to call on inactive GameObjects.
-    /// Clears the ON color from the renderer and nulls the coroutine reference.
-    /// Does NOT touch oculusColorVisual.enabled — toggling that on an inactive
-    /// object corrupts the Oculus color system.
-    /// When the panel next becomes active, OnEnable fires OnToggleChanged(toggle.isOn)
-    /// which performs the full OFF reset (re-enable Oculus) on a live object.
-    /// </summary>
-    public void ClearPropertyBlock()
-    {
-        if (routine != null)
-        {
-            StopCoroutine(routine);
-            routine = null;
-        }
         if (targetRenderer != null)
         {
             targetRenderer.SetPropertyBlock(null);
 
-            // Resync currentColor to what the renderer will now actually show
-            // (the material default). Without this, the next AnimateOn() starts
-            // from the stale ON color even though the renderer has been reset,
-            // causing a visual jump instead of a smooth transition.
             if (targetRenderer.sharedMaterial != null &&
                 targetRenderer.sharedMaterial.HasProperty(colorID))
                 currentColor = targetRenderer.sharedMaterial.GetColor(colorID);
             else
                 currentColor = Color.white;
         }
+    }
+
+    /// <summary>
+    /// Called by ClearSelection after _clearing=true and isOn=false.
+    /// Clears ON color and re-enables oculusColorVisual.
+    /// Safe to call on active and inactive GameObjects.
+    /// </summary>
+    public void ClearPropertyBlock()
+    {
+        if (routine != null) { StopCoroutine(routine); routine = null; }
+
+        if (targetRenderer != null)
+        {
+            targetRenderer.SetPropertyBlock(null);
+
+            if (targetRenderer.sharedMaterial != null &&
+                targetRenderer.sharedMaterial.HasProperty(colorID))
+                currentColor = targetRenderer.sharedMaterial.GetColor(colorID);
+            else
+                currentColor = Color.white;
+        }
+
+        if (oculusColorVisual != null)
+            oculusColorVisual.enabled = true;
     }
 
     private IEnumerator AnimateOn()

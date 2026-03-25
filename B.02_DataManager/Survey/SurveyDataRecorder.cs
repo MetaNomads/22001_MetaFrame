@@ -23,8 +23,16 @@ namespace MetaFrame.Data
         public void SetConfidence(string value)   => _confidence   = value;
         public void SetPlausibility(string value) => _plausibility = value;
 
-        /// <summary>Call when the survey UI becomes visible to stamp the report start time.</summary>
-        public void StartReport() => _reportStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+        /// <summary>
+        /// Stamps report start time on first call per trial.
+        /// No-op if already stamped — safe to call from every toggle interaction.
+        /// Reset() nulls _reportStart so this re-arms automatically each trial.
+        /// </summary>
+        public void StartReport()
+        {
+            if (_reportStart == null)
+                _reportStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+        }
 
         // ── Gate ──────────────────────────────────────────────────────────────────
 
