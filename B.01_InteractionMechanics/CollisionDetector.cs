@@ -206,7 +206,7 @@ public class CollisionTrigger : MonoBehaviour
 
     private void OnContactEnter()
     {
-        Debug.Log("[CollisionTrigger] OnContactEnter.");
+        
         FireEnter();
         TryEvaluate();
     }
@@ -286,7 +286,6 @@ public class CollisionListener : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (!IsTarget(other.transform)) return;
-        Debug.Log($"[CollisionListener:{name}] TriggerEnter '{other.gameObject.name}'.");
         _onEnter?.Invoke();
     }
 
@@ -298,7 +297,6 @@ public class CollisionListener : MonoBehaviour
     private void OnTriggerExit(Collider other)
     {
         if (!IsTarget(other.transform)) return;
-        Debug.Log($"[CollisionListener:{name}] TriggerExit '{other.gameObject.name}'.");
         _onExit?.Invoke();
     }
 

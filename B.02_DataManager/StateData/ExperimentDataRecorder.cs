@@ -219,14 +219,14 @@ namespace MetaFrame.Data
                 stimulus    = stimulus,
             };
 
-            // trial_start was entered before OnTrialBegan fired — record it as the opening entry
-            if (gsm != null)
-            {
-                _currentTrial.stateTransitions.Add(new TransitionEvent(
-                    from: _prevGsmStateName ?? "—",
-                    to:   gsm.StateName(gsm.CurrentStateIndex),
-                    time: DateTime.Now));
-            }
+            //// trial_start was entered before OnTrialBegan fired — record it as the opening entry
+            //if (gsm != null)
+            //{
+            //    _currentTrial.stateTransitions.Add(new TransitionEvent(
+            //        from: _prevGsmStateName ?? "—",
+            //        to:   gsm.StateName(gsm.CurrentStateIndex),
+            //        time: DateTime.Now));
+            //}
 
             _currentSession.trials.Add(_currentTrial);
             Debug.Log($"[ExperimentDataRecorder] Trial {_currentTrial.trialNumber} began in '{_currentSession.sessionLabel}'. Stimulus: {stimulus}");
