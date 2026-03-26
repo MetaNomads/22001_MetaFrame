@@ -15,7 +15,7 @@ public class CollisionTrigger : MonoBehaviour
 {
     [Header("Objects")]
     [Tooltip("GameObjects whose colliders act as trigger zones.")]
-    public List<GameObject> colliderZones   = new();
+    public List<GameObject> colliderZones = new();
 
     [Tooltip("GameObjects that must be touched to fire events.")]
     public List<GameObject> colliderObjects = new();
@@ -47,8 +47,8 @@ public class CollisionTrigger : MonoBehaviour
     private bool _finishSpent;
 
     private enum EvalMode { None, Once, Continuous }
-    private EvalMode _evalMode       = EvalMode.None;
-    private int      _pendingActions = 0;
+    private EvalMode _evalMode = EvalMode.None;
+    private int _pendingActions = 0;
 
     private readonly List<CollisionListener> _listeners = new();
 
@@ -86,17 +86,7 @@ public class CollisionTrigger : MonoBehaviour
 
     private void Start()
     {
-        if (colliderZones.Count == 0)
-        {
-            Debug.LogWarning("[CollisionTrigger] No collider zones assigned.");
-            return;
-        }
-
-        if (colliderObjects.Count == 0)
-        {
-            Debug.LogWarning("[CollisionTrigger] No collider objects assigned.");
-            return;
-        }
+        if (colliderZones.Count == 0 || colliderObjects.Count == 0) return;
 
         foreach (var zone in colliderZones)
         {
@@ -107,11 +97,8 @@ public class CollisionTrigger : MonoBehaviour
                 var listener = col.gameObject.AddComponent<CollisionListener>();
                 listener.Init(colliderObjects, OnContactEnter, OnContactStay, OnContactExit);
                 _listeners.Add(listener);
-                Debug.Log($"[CollisionTrigger] Listener on '{col.gameObject.name}' (isTrigger={col.isTrigger}).");
             }
         }
-
-        Debug.Log($"[CollisionTrigger] Ready — {_listeners.Count} listener(s).");
     }
 
     private void OnDestroy()
@@ -129,7 +116,6 @@ public class CollisionTrigger : MonoBehaviour
     public void EvaluateOnce()
     {
         _evalMode = EvalMode.Once;
-        Debug.Log("[CollisionTrigger] EvaluateOnce() armed.");
     }
 
     /// <summary>
@@ -138,36 +124,32 @@ public class CollisionTrigger : MonoBehaviour
     public void EvaluateContinuous()
     {
         _evalMode = EvalMode.Continuous;
-        Debug.Log("[CollisionTrigger] EvaluateContinuous() armed.");
     }
 
     /// <summary>Stop evaluating without firing.</summary>
     public void StopEvaluating()
     {
-        Debug.Log($"[CollisionTrigger] StopEvaluating() (was {_evalMode}).");
         _evalMode = EvalMode.None;
     }
 
     /// <summary>Reset all events so they can fire again.</summary>
     public void ResetTrigger()
     {
-        Debug.Log("[CollisionTrigger] ResetTrigger().");
-        _enterSpent     = false;
-        _exitSpent      = false;
-        _evaluateSpent  = false;
-        _finishSpent    = false;
+        _enterSpent = false;
+        _exitSpent = false;
+        _evaluateSpent = false;
+        _finishSpent = false;
         _pendingActions = 0;
-        _evalMode       = EvalMode.None;
+        _evalMode = EvalMode.None;
     }
 
     /// <summary>Spend all events so nothing fires until ResetTrigger().</summary>
     public void SpendTrigger()
     {
-        Debug.Log("[CollisionTrigger] SpendTrigger().");
-        _enterSpent    = true;
-        _exitSpent     = true;
+        _enterSpent = true;
+        _exitSpent = true;
         _evaluateSpent = true;
-        _finishSpent   = true;
+        _finishSpent = true;
     }
 
     // ── Pending Action API ────────────────────────────────────────────────────
@@ -189,14 +171,9 @@ public class CollisionTrigger : MonoBehaviour
     /// <summary>Signal that a registered async action finished.</summary>
     public void CompleteAction()
     {
-        if (_pendingActions <= 0)
-        {
-            Debug.LogWarning("[CollisionTrigger] CompleteAction() called with no pending actions.");
-            return;
-        }
+        if (_pendingActions <= 0) return;
 
         _pendingActions--;
-        Debug.Log($"[CollisionTrigger] CompleteAction() — {_pendingActions} remaining.");
 
         if (_pendingActions == 0)
             FireFinishAction();
@@ -206,7 +183,6 @@ public class CollisionTrigger : MonoBehaviour
 
     private void OnContactEnter()
     {
-        
         FireEnter();
         TryEvaluate();
     }
@@ -219,7 +195,6 @@ public class CollisionTrigger : MonoBehaviour
 
     private void OnContactExit()
     {
-        Debug.Log("[CollisionTrigger] OnContactExit.");
         FireExit();
     }
 
@@ -229,13 +204,9 @@ public class CollisionTrigger : MonoBehaviour
         if (_evaluateSpent) return;
 
         if (_evalMode == EvalMode.Once)
-        {
             _evalMode = EvalMode.None;
-            Debug.Log("[CollisionTrigger] EvalMode.Once — disarming.");
-        }
 
         _pendingActions = 0;
-        Debug.Log("[CollisionTrigger] Firing OnEvaluate.");
         FireEvaluate();
 
         if (_pendingActions == 0)
@@ -249,25 +220,24 @@ public class CollisionTrigger : MonoBehaviour
 public class CollisionListener : MonoBehaviour
 {
     private List<GameObject> _targets;
-    private System.Action    _onEnter;
-    private System.Action    _onStay;
-    private System.Action    _onExit;
+    private System.Action _onEnter;
+    private System.Action _onStay;
+    private System.Action _onExit;
 
     public void Init(List<GameObject> targets,
-                     System.Action    onEnter,
-                     System.Action    onStay,
-                     System.Action    onExit)
+                     System.Action onEnter,
+                     System.Action onStay,
+                     System.Action onExit)
     {
         _targets = targets;
         _onEnter = onEnter;
-        _onStay  = onStay;
-        _onExit  = onExit;
+        _onStay = onStay;
+        _onExit = onExit;
     }
 
     private void OnCollisionEnter(Collision c)
     {
         if (!IsTarget(c.transform)) return;
-        Debug.Log($"[CollisionListener:{name}] CollisionEnter '{c.gameObject.name}'.");
         _onEnter?.Invoke();
     }
 
@@ -279,7 +249,6 @@ public class CollisionListener : MonoBehaviour
     private void OnCollisionExit(Collision c)
     {
         if (!IsTarget(c.transform)) return;
-        Debug.Log($"[CollisionListener:{name}] CollisionExit '{c.gameObject.name}'.");
         _onExit?.Invoke();
     }
 
