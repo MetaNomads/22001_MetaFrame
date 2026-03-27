@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -57,7 +57,7 @@ namespace MetaFrame.Data
         private Dictionary<string, StreamWriter> _jsonWriters = new Dictionary<string, StreamWriter>();
         private Dictionary<string, List<Dictionary<string, object>>> _dataBatches = new Dictionary<string, List<Dictionary<string, object>>>();
         private Dictionary<string, float> _lastBatchTimes = new Dictionary<string, float>();
-        
+
         // Pre-allocated structures for performance
         private readonly StringBuilder _stringBuilder = new StringBuilder(4096);
         private JsonSerializerSettings _jsonSettings;
@@ -67,6 +67,13 @@ namespace MetaFrame.Data
         private int _totalFramesSkipped = 0;
         private float _nextRecordTime;
 
+        // ── Voice recording events ─────────────────────────────────────────────────
+
+        public event Action OnRecordingStarted;
+        public event Action OnRecordingPaused;
+        public event Action OnRecordingResumed;
+        public event Action OnRecordingStopped;
+
         /*=========================================================================================================================*/
         /// <summary>
         /// Unity Lifecycle
@@ -75,7 +82,7 @@ namespace MetaFrame.Data
         void Awake()
         {
             _recordingInterval = _recordingIntervalMilliseconds / 1000f;
-            
+
             // Configure JSON settings once
             _jsonSettings = new JsonSerializerSettings
             {
@@ -150,8 +157,9 @@ namespace MetaFrame.Data
                 startRecord = true;
                 _isPaused = false;
                 _nextRecordTime = Time.unscaledTime + _recordingInterval;
-                
+
                 Debug.Log($"[DataRecorder] Recording started at {_recordingInterval} milliseconds with {_minBatchSize}-{_maxBatchSize} record batching. Session: {sessionPath}");
+                OnRecordingStarted?.Invoke();
             }
             catch (Exception e)
             {
@@ -170,6 +178,7 @@ namespace MetaFrame.Data
                 FlushAllBatches();
                 CloseAllWriters();
                 Debug.Log($"[DataRecorder] Recording stopped. Total frames: {_totalFramesRecorded}, Skipped: {_totalFramesSkipped}");
+                OnRecordingStopped?.Invoke();
             }
             catch (Exception e)
             {
@@ -190,6 +199,7 @@ namespace MetaFrame.Data
             if (!startRecord || _isPaused) return;
             _isPaused = true;
             Debug.Log("[DataRecorder] Recording paused.");
+            OnRecordingPaused?.Invoke();
         }
 
         [BoxGroup("Controls"), PropertyOrder(99)]
@@ -199,6 +209,7 @@ namespace MetaFrame.Data
             if (!startRecord || !_isPaused) return;
             _isPaused = false;
             Debug.Log("[DataRecorder] Recording resumed.");
+            OnRecordingResumed?.Invoke();
         }
 
         private string GetCurrentStatusLabel() => "Status";
@@ -261,22 +272,20 @@ namespace MetaFrame.Data
             {
                 try
                 {
-                    // Debug.Log("The source being tested is: " +  dataSource.SourceName);
                     var sourceData = dataSource.CollectData();
-                    // Debug.Log("The source: " + dataSource.SourceName + " has " + sourceData.Count + " options");
                     if (sourceData.Count > 0)
                     {
                         // Create new dictionary with timestamp first
                         var orderedData = new Dictionary<string, object>();
                         orderedData["timestamp"] = timestamp;
-                        
+
                         // Apply precision and add remaining data
                         ApplyPrecisionToData(sourceData);
                         foreach (var kvp in sourceData)
                         {
                             orderedData[kvp.Key] = kvp.Value;
                         }
-                        
+
                         results[dataSource.SourceName.ToLower()] = orderedData;
                     }
                 }
@@ -307,28 +316,28 @@ namespace MetaFrame.Data
             {
                 case float f:
                     return (float)Math.Round(f, _decimalPrecision, MidpointRounding.AwayFromZero);
-                
+
                 case double d:
                     return Math.Round(d, _decimalPrecision, MidpointRounding.AwayFromZero);
-                
+
                 case float[] floatArray:
                     for (int i = 0; i < floatArray.Length; i++)
                     {
                         floatArray[i] = (float)Math.Round(floatArray[i], _decimalPrecision, MidpointRounding.AwayFromZero);
                     }
                     return floatArray;
-                
+
                 case double[] doubleArray:
                     for (int i = 0; i < doubleArray.Length; i++)
                     {
                         doubleArray[i] = Math.Round(doubleArray[i], _decimalPrecision, MidpointRounding.AwayFromZero);
                     }
                     return doubleArray;
-                
+
                 case Dictionary<string, object> dict:
                     ApplyPrecisionToData(dict);
                     return dict;
-                
+
                 default:
                     // Handle anonymous objects and other complex types via reflection
                     if (value.GetType().IsClass && !value.GetType().IsPrimitive && value.GetType() != typeof(string))
@@ -343,7 +352,7 @@ namespace MetaFrame.Data
         {
             var type = obj.GetType();
             var properties = type.GetProperties();
-            
+
             // Create new anonymous object with rounded values
             var dict = new Dictionary<string, object>();
             foreach (var prop in properties)
@@ -403,7 +412,7 @@ namespace MetaFrame.Data
         private bool ShouldFlushBatch(string sourceName)
         {
             var batch = _dataBatches[sourceName];
-            
+
             // Flush if EITHER condition is met:
             return batch.Count >= _minBatchSize ||     // Normal batching threshold
                    batch.Count >= _maxBatchSize;       // Hard limit (safety)
@@ -490,8 +499,6 @@ namespace MetaFrame.Data
         [ShowInInspector, ReadOnly]
         private string CurrentSessionPath => sessionPath ?? "Not recording";
 
-
-
         [BoxGroup("Runtime Info")]
         [ShowInInspector, ReadOnly]
         private int FramesRecorded => _totalFramesRecorded;
@@ -506,8 +513,8 @@ namespace MetaFrame.Data
 
         [BoxGroup("Runtime Info")]
         [ShowInInspector, ReadOnly]
-        private string BatchStatus => startRecord ? 
-            $"Batches: {string.Join(", ", _dataBatches.Keys.Select(k => $"{k}({_dataBatches[k].Count})"))}" : 
+        private string BatchStatus => startRecord ?
+            $"Batches: {string.Join(", ", _dataBatches.Keys.Select(k => $"{k}({_dataBatches[k].Count})"))}" :
             "Not recording";
     }
 }
