@@ -1831,10 +1831,10 @@ MonoBehaviour:
   foundCompatibleSetup: 1
   gpuName_2: NVIDIA GeForce RTX 4090
   runsNonRTX: 0
-  runsRTX6: 1
+  runsRTX6: 0
   runsRTX9: 1
   runsOptix5: 0
-  runsOptix6: 1
+  runsOptix6: 0
   runsOptix7: 1
   runsOIDN: 1
   runsOIDN2: 1

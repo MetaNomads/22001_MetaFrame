@@ -61,7 +61,7 @@ public class SurveyControl : MonoBehaviour
     // Runtime state
     // =========================================================================
 
-    private GateType    _gate               = GateType.None;
+    private GateType _gate = GateType.None;
     private ToggleGroup _activeConfirmGroup = null;
 
     public GateType CurrentGate => _gate;
@@ -117,11 +117,11 @@ public class SurveyControl : MonoBehaviour
     private bool EvaluateSurveyGate()
     {
         if (!AnyTogglesOnInGroup(detectionGroup))
-            { Debug.LogWarning("[SurveyControl] Detection not answered."); return false; }
+        { Debug.LogWarning("[SurveyControl] Detection not answered."); return false; }
         if (!AnyTogglesOnInGroup(confidenceGroup))
-            { Debug.LogWarning("[SurveyControl] Confidence not answered."); return false; }
+        { Debug.LogWarning("[SurveyControl] Confidence not answered."); return false; }
         if (toggle_y.isOn && !AnyTogglesOnInGroup(plausibilityGroup))
-            { Debug.LogWarning("[SurveyControl] Plausibility not answered."); return false; }
+        { Debug.LogWarning("[SurveyControl] Plausibility not answered."); return false; }
         return true;
     }
 
@@ -136,7 +136,7 @@ public class SurveyControl : MonoBehaviour
     public void TutorialSetup()
     {
         SetActivePanel(tutorialPanel);
-        _gate               = GateType.Confirmation;
+        _gate = GateType.Confirmation;
         _activeConfirmGroup = tutorialGroup;
         onTutorialSetup?.Invoke();
     }
@@ -144,7 +144,7 @@ public class SurveyControl : MonoBehaviour
     public void BreakSetup()
     {
         SetActivePanel(breakPanel);
-        _gate               = GateType.Confirmation;
+        _gate = GateType.Confirmation;
         _activeConfirmGroup = breakGroup;
         onBreakSetup?.Invoke();
     }
@@ -152,7 +152,7 @@ public class SurveyControl : MonoBehaviour
     public void SurveySetup()
     {
         SetActivePanel(surveyPanel);
-        _gate               = GateType.Survey;
+        _gate = GateType.Survey;
         _activeConfirmGroup = null;
         onSurveySetup?.Invoke();
     }
@@ -160,7 +160,7 @@ public class SurveyControl : MonoBehaviour
     public void ExperimentEndSetup()
     {
         SetActivePanel(experimentEndPanel);
-        _gate               = GateType.None;
+        _gate = GateType.None;
         _activeConfirmGroup = null;
         onExperimentEndSetup?.Invoke();
     }
@@ -270,6 +270,42 @@ public class SurveyControl : MonoBehaviour
 
         if (plausibilityPanel != null) plausibilityPanel.SetActive(false);
         surveyDataRecorder.Reset();
+    }
+
+    // =========================================================================
+    // Panel Disable Methods — opposites of the Setup methods
+    //
+    // Each method deactivates its panel without touching gate state or
+    // toggle selections. Use DisableAllPanels() to hide every panel at once
+    // (e.g. before showing a custom overlay or resetting the UI mid-session).
+    // =========================================================================
+
+    public void DisableTutorialPanel()
+    {
+        if (tutorialPanel != null) tutorialPanel.SetActive(false);
+    }
+
+    public void DisableBreakPanel()
+    {
+        if (breakPanel != null) breakPanel.SetActive(false);
+    }
+
+    public void DisableSurveyPanel()
+    {
+        if (surveyPanel != null) surveyPanel.SetActive(false);
+    }
+
+    public void DisableExperimentEndPanel()
+    {
+        if (experimentEndPanel != null) experimentEndPanel.SetActive(false);
+    }
+
+    public void DisableAllPanels()
+    {
+        DisableTutorialPanel();
+        DisableBreakPanel();
+        DisableSurveyPanel();
+        DisableExperimentEndPanel();
     }
 
     // =========================================================================
