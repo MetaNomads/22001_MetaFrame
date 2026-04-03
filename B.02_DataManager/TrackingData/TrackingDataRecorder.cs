@@ -24,7 +24,7 @@ namespace MetaFrame.Data
 
         [BoxGroup("Recording Configuration")]
         [SerializeField]
-        [Range(1, 20)]
+        [Range(10, 1000)]
         [Tooltip("Recording interval in milliseconds")]
         private int _recordingIntervalMilliseconds = 10;
 
@@ -266,7 +266,7 @@ namespace MetaFrame.Data
         private Dictionary<string, Dictionary<string, object>> CollectAllData()
         {
             var results = new Dictionary<string, Dictionary<string, object>>();
-            string timestamp = GetRealWorldTimeString();
+            long epochMs = GetEpochMilliseconds();
 
             foreach (var dataSource in _dataManager._dataSources)
             {
@@ -277,7 +277,7 @@ namespace MetaFrame.Data
                     {
                         // Create new dictionary with timestamp first
                         var orderedData = new Dictionary<string, object>();
-                        orderedData["timestamp"] = timestamp;
+                        orderedData["timestamp"] = epochMs;
 
                         // Apply precision and add remaining data
                         ApplyPrecisionToData(sourceData);
@@ -467,10 +467,9 @@ namespace MetaFrame.Data
             return writer;
         }
 
-        private string GetRealWorldTimeString()
+        private long GetEpochMilliseconds()
         {
-            var time = DateTime.Now.TimeOfDay;
-            return $"{time.Hours:D2}:{time.Minutes:D2}:{time.Seconds:D2}.{time.Milliseconds:D3}";
+            return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
         private void LogDataSourcesOnce()

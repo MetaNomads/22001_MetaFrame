@@ -15,14 +15,14 @@ namespace MetaFrame.Data
         public string source;
         public string from;
         public string to;
-        public string timestamp;
+        public long   timestamp;
 
         public TransitionEvent(string from, string to, DateTime time, string source = null)
         {
-            this.source   = string.IsNullOrEmpty(source) ? null : source;
-            this.from     = from;
-            this.to       = to;
-            this.timestamp = time.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+            this.source    = string.IsNullOrEmpty(source) ? null : source;
+            this.from      = from;
+            this.to        = to;
+            this.timestamp = new DateTimeOffset(time).ToUnixTimeMilliseconds();
         }
     }
 
@@ -31,8 +31,8 @@ namespace MetaFrame.Data
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string detection;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string confidence;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string plausibility;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string reportStart;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string reportEnd;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long?  reportStart;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long?  reportEnd;
     }
 
     public class TrialRecord
@@ -50,18 +50,18 @@ namespace MetaFrame.Data
     public class SessionRecord
     {
         public string sessionLabel;
-        public string sessionStart;
+        public long   sessionStart;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string sessionEnd;
+        public long?  sessionEnd;
         public List<TrialRecord> trials = new();
     }
 
     public class ExperimentRecord
     {
         public int    subjectID;
-        public string experimentStart;
+        public long   experimentStart;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string experimentEnd;
+        public long?  experimentEnd;
         public List<SessionRecord> sessions = new();
     }
 
@@ -72,7 +72,7 @@ namespace MetaFrame.Data
         public string detection;
         public string confidence;
         public string plausibility;
-        public string reportStart;
+        public long?  reportStart;
     }
 
     // ── ExperimentDataRecorder ────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ namespace MetaFrame.Data
             _experiment = new ExperimentRecord
             {
                 subjectID       = subjectID,
-                experimentStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
+                experimentStart = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
 
             _prevGsmStateName = null;
@@ -190,7 +190,7 @@ namespace MetaFrame.Data
             _currentSession = new SessionRecord
             {
                 sessionLabel = sessionLabel,
-                sessionStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
+                sessionStart = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
             _experiment.sessions.Add(_currentSession);
             Debug.Log($"[ExperimentDataRecorder] Session began: {sessionLabel}");
@@ -199,7 +199,7 @@ namespace MetaFrame.Data
         private void OnSessionEnded()
         {
             if (_currentSession == null) return;
-            _currentSession.sessionEnd = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+            _currentSession.sessionEnd = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _currentSession = null;
             Flush();
             Debug.Log("[ExperimentDataRecorder] Session ended.");
@@ -247,7 +247,7 @@ namespace MetaFrame.Data
         private void OnExperimentEnded()
         {
             if (_experiment == null) return;
-            _experiment.experimentEnd = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+            _experiment.experimentEnd = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             Flush();
             Debug.Log("[ExperimentDataRecorder] Experiment ended.");
         }
@@ -277,7 +277,7 @@ namespace MetaFrame.Data
                 confidence   = data.confidence,
                 plausibility = data.plausibility,
                 reportStart  = data.reportStart,
-                reportEnd    = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
+                reportEnd    = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
 
             Flush();
@@ -298,7 +298,7 @@ namespace MetaFrame.Data
                 confidence   = data.confidence,
                 plausibility = data.plausibility,
                 reportStart  = data.reportStart,
-                reportEnd    = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff"),
+                reportEnd    = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
 
             Flush();

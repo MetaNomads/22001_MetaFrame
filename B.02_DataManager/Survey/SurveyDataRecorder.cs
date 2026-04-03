@@ -15,12 +15,12 @@ namespace MetaFrame.Data
         private string _detection;
         private string _confidence;
         private string _plausibility;
-        private string _reportStart;
+        private long?  _reportStart;
 
         // ── Public setters — wire these to your UI ────────────────────────────────
 
-        public void SetDetection(string value) => _detection = value;
-        public void SetConfidence(string value) => _confidence = value;
+        public void SetDetection(string value)    => _detection    = value;
+        public void SetConfidence(string value)   => _confidence   = value;
         public void SetPlausibility(string value) => _plausibility = value;
 
         /// <summary>
@@ -31,7 +31,7 @@ namespace MetaFrame.Data
         public void StartReport()
         {
             if (_reportStart == null)
-                _reportStart = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss.fff");
+                _reportStart = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
         // ── Gate ──────────────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ namespace MetaFrame.Data
         public bool IsReady =>
             !string.IsNullOrEmpty(_detection) &&
             !string.IsNullOrEmpty(_confidence) &&
-            !string.IsNullOrEmpty(_reportStart);
+            _reportStart.HasValue;
 
         // ── Collect ───────────────────────────────────────────────────────────────
 
@@ -52,10 +52,10 @@ namespace MetaFrame.Data
         {
             var data = new SurveyData
             {
-                detection = _detection,
-                confidence = _confidence,
+                detection    = _detection,
+                confidence   = _confidence,
                 plausibility = _plausibility,
-                reportStart = _reportStart,
+                reportStart  = _reportStart,
             };
 
             Reset();
@@ -65,10 +65,10 @@ namespace MetaFrame.Data
         /// <summary>Clears all response state. Called automatically by Collect().</summary>
         public void Reset()
         {
-            _detection = null;
-            _confidence = null;
+            _detection    = null;
+            _confidence   = null;
             _plausibility = null;
-            _reportStart = null;
+            _reportStart  = null;
         }
     }
 }

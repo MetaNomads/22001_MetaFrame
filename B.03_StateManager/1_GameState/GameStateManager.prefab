@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4823232531370597898}
-  - component: {fileID: 7657301038995638220}
   - component: {fileID: 3585457600484475148}
   - component: {fileID: 2377961128646244871}
   - component: {fileID: 4706132088517994996}
@@ -35,20 +34,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7657301038995638220
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6070681811727956260}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2d5e4a8e86f72be4eae0d74a80032036, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SpawnMechanism
-  cupPrefab: {fileID: 0}
-  spawnPoint: {x: 1.7068, y: 3.0336, z: 1.3457}
 --- !u!114 &3585457600484475148
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -94,9 +79,10 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 1
           m_CallState: 2
-  - definition: {fileID: 11400000, guid: e4aca8c6381e40d4cac5ea41377b1205, type: 2}
+  - definition: {fileID: 11400000, guid: 04b6a909064717740bee140d5fc33206, type: 2}
     allowedFrom:
-    - {fileID: 11400000, guid: 6f8cb29ca61695141971155f2830d92a, type: 2}
+    - {fileID: 11400000, guid: cee86c8717f491c4aaca373df1f9a5e1, type: 2}
+    - {fileID: 11400000, guid: e4aca8c6381e40d4cac5ea41377b1205, type: 2}
     onEnter:
       m_PersistentCalls:
         m_Calls:
@@ -132,6 +118,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: cee86c8717f491c4aaca373df1f9a5e1, type: 2}
     - {fileID: 11400000, guid: 9bd0407a779405f4a9be1e34141cd79f, type: 2}
     - {fileID: 11400000, guid: 6f8cb29ca61695141971155f2830d92a, type: 2}
+    - {fileID: 11400000, guid: 04b6a909064717740bee140d5fc33206, type: 2}
     onEnter:
       m_PersistentCalls:
         m_Calls:
@@ -264,6 +251,73 @@ MonoBehaviour:
   - definition: {fileID: 11400000, guid: 6f8cb29ca61695141971155f2830d92a, type: 2}
     allowedFrom:
     - {fileID: 11400000, guid: eeaf34287d47c5944b99b105c6411b4f, type: 2}
+    - {fileID: 11400000, guid: 5b6800580671cfb43b4cc0c3aebd41c5, type: 2}
+    onEnter:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 0}
+          m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+          m_MethodName: SetActive
+          m_Mode: 6
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    onExit:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 0}
+          m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+          m_MethodName: SetActive
+          m_Mode: 6
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 1
+          m_CallState: 2
+  - definition: {fileID: 11400000, guid: 32ab8df38e136564ba9efa15c70007ae, type: 2}
+    allowedFrom:
+    - {fileID: 11400000, guid: 6f8cb29ca61695141971155f2830d92a, type: 2}
+    onEnter:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 0}
+          m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+          m_MethodName: SetActive
+          m_Mode: 6
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    onExit:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 0}
+          m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+          m_MethodName: SetActive
+          m_Mode: 6
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 1
+          m_CallState: 2
+  - definition: {fileID: 11400000, guid: e4aca8c6381e40d4cac5ea41377b1205, type: 2}
+    allowedFrom:
+    - {fileID: 11400000, guid: 32ab8df38e136564ba9efa15c70007ae, type: 2}
     onEnter:
       m_PersistentCalls:
         m_Calls:
@@ -296,7 +350,7 @@ MonoBehaviour:
           m_CallState: 2
   - definition: {fileID: 11400000, guid: c7152ef712bd39745a2187a265aa4e5c, type: 2}
     allowedFrom:
-    - {fileID: 11400000, guid: 6f8cb29ca61695141971155f2830d92a, type: 2}
+    - {fileID: 11400000, guid: 32ab8df38e136564ba9efa15c70007ae, type: 2}
     onEnter:
       m_PersistentCalls:
         m_Calls:
@@ -344,21 +398,24 @@ MonoBehaviour:
   subjectID: 1
   tutorialGroup:
     groupName: Tutorial
+    normalDefinition: {fileID: 0}
     anomalyObjects: []
-  tutorialStimuliSequence:
-    stimulus: 000000000000000000000000
+  tutorialStimuli: []
   sessionGroups:
   - groupName: Metaphysical
+    normalDefinition: {fileID: 0}
     anomalyObjects:
     - {fileID: 11400000, guid: d70861705a9d2ef498ad41515776503b, type: 2}
     - {fileID: 11400000, guid: 48f4dfce48e54494784183990dbfa817, type: 2}
     - {fileID: 11400000, guid: 48f4dfce48e54494784183990dbfa817, type: 2}
   - groupName: Nomological
+    normalDefinition: {fileID: 0}
     anomalyObjects:
     - {fileID: 11400000, guid: 0441a83eef9bd3848ae290766735b5ff, type: 2}
     - {fileID: 11400000, guid: e1783ace61eada240a91864cf3a38d75, type: 2}
     - {fileID: 11400000, guid: e1783ace61eada240a91864cf3a38d75, type: 2}
   - groupName: Conventional
+    normalDefinition: {fileID: 0}
     anomalyObjects:
     - {fileID: 11400000, guid: d8b35f726b04cdd4a9c7b43314d9c740, type: 2}
     - {fileID: 11400000, guid: 47fe72da1a3e02c4695c64a07d44abf0, type: 2}
@@ -374,41 +431,38 @@ MonoBehaviour:
   - sessionLabel: Session 1
     group:
       groupName: Session 2
+      normalDefinition: {fileID: 0}
       anomalyObjects:
       - {fileID: 11400000, guid: 0441a83eef9bd3848ae290766735b5ff, type: 2}
       - {fileID: 11400000, guid: e1783ace61eada240a91864cf3a38d75, type: 2}
       - {fileID: 11400000, guid: 23fae420d9451a442bec13864453162a, type: 2}
     listIndex: 2
-    stimulusValues: 
-    stimulus: []
+    definitions: []
   - sessionLabel: Session 2
     group:
       groupName: Session 3
+      normalDefinition: {fileID: 0}
       anomalyObjects:
       - {fileID: 11400000, guid: d8b35f726b04cdd4a9c7b43314d9c740, type: 2}
       - {fileID: 11400000, guid: 47fe72da1a3e02c4695c64a07d44abf0, type: 2}
       - {fileID: 11400000, guid: ec1cf05ed90ab0e4bb9119db9e7682e0, type: 2}
     listIndex: 3
-    stimulusValues: 
-    stimulus: []
+    definitions: []
   - sessionLabel: Session 3
     group:
       groupName: Session 1
+      normalDefinition: {fileID: 0}
       anomalyObjects:
       - {fileID: 11400000, guid: d70861705a9d2ef498ad41515776503b, type: 2}
       - {fileID: 11400000, guid: 48f4dfce48e54494784183990dbfa817, type: 2}
       - {fileID: 11400000, guid: 50326de99246dad47b4173aa151f2c93, type: 2}
     listIndex: 1
-    stimulusValues: 
-    stimulus:
-    - N
-    - N
-    - N
-    - N
-    - N
+    definitions: []
   gsm: {fileID: 3585457600484475148}
   stateExperimentStart: {fileID: 11400000, guid: cee86c8717f491c4aaca373df1f9a5e1,
     type: 2}
+  stateSessionStart: {fileID: 11400000, guid: 04b6a909064717740bee140d5fc33206, type: 2}
+  stateSessionEnd: {fileID: 11400000, guid: 32ab8df38e136564ba9efa15c70007ae, type: 2}
   stateTrialStart: {fileID: 11400000, guid: 5b6800580671cfb43b4cc0c3aebd41c5, type: 2}
   stateTrialEnd: {fileID: 11400000, guid: 6f8cb29ca61695141971155f2830d92a, type: 2}
   stateIdle: {fileID: 11400000, guid: e4aca8c6381e40d4cac5ea41377b1205, type: 2}
@@ -426,3 +480,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ExperimentDebugRunner
   sequencer: {fileID: 2377961128646244871}
+  recorder: {fileID: 0}
+  surveyControl: {fileID: 0}
