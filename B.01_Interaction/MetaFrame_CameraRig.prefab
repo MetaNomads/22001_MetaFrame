@@ -77,6 +77,12 @@ MonoBehaviour:
   _headGazeInteractor: {fileID: 0}
   _chestGazeTransform: {fileID: 0}
   _chestGazeInteractor: {fileID: 0}
+  _rayVisibility: 2
+  _rayLength: 2
+  _rayWidth: 0.005
+  _centerRayColor: {r: 0, g: 1, b: 1, a: 1}
+  _headRayColor: {r: 0, g: 1, b: 0, a: 1}
+  _chestRayColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!1 &67754852181338921
 GameObject:
   m_ObjectHideFlags: 0
@@ -2490,6 +2496,9 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _pitchVariance: 0.03
+  _distanceThreshold: 0.5
+  _angleThreshold: 0.01
+  _context: {fileID: 0}
 --- !u!114 &2690527715663852792
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6699,6 +6708,11 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 8771479158215636514}
     m_Modifications:
+    - target: {fileID: 5841275377495994900, guid: bc242319e5f2bd842999ab7665ad2d78,
+        type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
     - target: {fileID: 5841275377868706828, guid: bc242319e5f2bd842999ab7665ad2d78,
         type: 3}
       propertyPath: m_RootOrder
@@ -11730,6 +11744,11 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1839272522402917619}
     m_Modifications:
+    - target: {fileID: 5841275377495994900, guid: bc242319e5f2bd842999ab7665ad2d78,
+        type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
     - target: {fileID: 5841275377868706828, guid: bc242319e5f2bd842999ab7665ad2d78,
         type: 3}
       propertyPath: m_RootOrder

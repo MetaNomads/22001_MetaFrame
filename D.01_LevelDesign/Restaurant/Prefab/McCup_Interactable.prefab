@@ -190,7 +190,7 @@ MonoBehaviour:
     - {x: 0.15650901, y: 0.039183427, z: -0.060878932, w: 0.9850195}
     - {x: 0.11672159, y: -0.048729293, z: 0.0011887754, w: 0.9919678}
   _ghostProvider: {fileID: 0}
-  _handGhostProvider: {fileID: 0}
+  _handGhostProvider: {fileID: 11400000, guid: 9b9df4f150839de48af887d742aabf53, type: 2}
   _ovrOffsetMode: 0
 --- !u!1 &388782634146837030
 GameObject:
@@ -971,7 +971,7 @@ MonoBehaviour:
     - {x: 0.15650901, y: 0.039183427, z: -0.060878932, w: 0.9850195}
     - {x: 0.11672159, y: -0.048729293, z: 0.0011887754, w: 0.9919678}
   _ghostProvider: {fileID: 0}
-  _handGhostProvider: {fileID: 0}
+  _handGhostProvider: {fileID: 11400000, guid: 9b9df4f150839de48af887d742aabf53, type: 2}
   _ovrOffsetMode: 0
 --- !u!1 &1633844817064005164
 GameObject:
@@ -2073,7 +2073,7 @@ MonoBehaviour:
     - {x: 0.15650901, y: 0.039183427, z: -0.060878932, w: 0.9850195}
     - {x: 0.11672159, y: -0.048729293, z: 0.0011887754, w: 0.9919678}
   _ghostProvider: {fileID: 0}
-  _handGhostProvider: {fileID: 0}
+  _handGhostProvider: {fileID: 11400000, guid: 9b9df4f150839de48af887d742aabf53, type: 2}
   _ovrOffsetMode: 0
 --- !u!1 &3801576127468240487
 GameObject:
@@ -2563,7 +2563,7 @@ MonoBehaviour:
     - {x: 0.15650901, y: 0.039183427, z: -0.060878932, w: 0.9850195}
     - {x: 0.11672159, y: -0.048729293, z: 0.0011887754, w: 0.9919678}
   _ghostProvider: {fileID: 0}
-  _handGhostProvider: {fileID: 0}
+  _handGhostProvider: {fileID: 11400000, guid: 9b9df4f150839de48af887d742aabf53, type: 2}
   _ovrOffsetMode: 0
 --- !u!1 &4975481544669779738
 GameObject:
@@ -2830,7 +2830,7 @@ MonoBehaviour:
     - {x: 0.15650901, y: 0.039183427, z: -0.060878932, w: 0.9850195}
     - {x: 0.11672159, y: -0.048729293, z: 0.0011887754, w: 0.9919678}
   _ghostProvider: {fileID: 0}
-  _handGhostProvider: {fileID: 0}
+  _handGhostProvider: {fileID: 11400000, guid: 9b9df4f150839de48af887d742aabf53, type: 2}
   _ovrOffsetMode: 0
 --- !u!1 &5347230680208658086
 GameObject:
@@ -3076,7 +3076,7 @@ MonoBehaviour:
     - {x: 0.15650901, y: 0.039183427, z: -0.060878932, w: 0.9850195}
     - {x: 0.11672159, y: -0.048729293, z: 0.0011887754, w: 0.9919678}
   _ghostProvider: {fileID: 0}
-  _handGhostProvider: {fileID: 0}
+  _handGhostProvider: {fileID: 11400000, guid: 9b9df4f150839de48af887d742aabf53, type: 2}
   _ovrOffsetMode: 0
 --- !u!1 &5739825277896765141
 GameObject:
@@ -3268,7 +3268,7 @@ MonoBehaviour:
     - {x: 0.15650901, y: 0.039183427, z: -0.060878932, w: 0.9850195}
     - {x: 0.11672159, y: -0.048729293, z: 0.0011887754, w: 0.9919678}
   _ghostProvider: {fileID: 0}
-  _handGhostProvider: {fileID: 0}
+  _handGhostProvider: {fileID: 11400000, guid: 9b9df4f150839de48af887d742aabf53, type: 2}
   _ovrOffsetMode: 0
 --- !u!1 &6771514293422194108
 GameObject:
@@ -4006,7 +4006,7 @@ MonoBehaviour:
     - {x: 0.15650901, y: 0.039183427, z: -0.060878932, w: 0.9850195}
     - {x: 0.11672159, y: -0.048729293, z: 0.0011887754, w: 0.9919678}
   _ghostProvider: {fileID: 0}
-  _handGhostProvider: {fileID: 0}
+  _handGhostProvider: {fileID: 11400000, guid: 9b9df4f150839de48af887d742aabf53, type: 2}
   _ovrOffsetMode: 0
 --- !u!1 &8247736645361653042
 GameObject:

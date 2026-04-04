@@ -9028,14 +9028,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1c078107ce432a84db96d639af9a38c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SurveyControl
-  survey: {fileID: 7022704072708429113}
+  surveySdt: {fileID: 0}
+  surveyConfidence: {fileID: 0}
+  surveyPlausibility: {fileID: 0}
   toggle_y: {fileID: 7483790171216242225}
   toggle_n: {fileID: 3417401035057006369}
+  detectionGroup: {fileID: 0}
+  confidenceGroup: {fileID: 0}
+  plausibilityGroup: {fileID: 0}
+  allToggles: []
   surveyDataRecorder: {fileID: 0}
-  groups:
-  - {fileID: 1400684338567256937}
-  - {fileID: 1818266195782262481}
-  - {fileID: 2280306011326823649}
 --- !u!1 &5422121032880373011
 GameObject:
   m_ObjectHideFlags: 0
@@ -10680,11 +10682,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1c078107ce432a84db96d639af9a38c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SurveyControl
-  survey: {fileID: 0}
+  surveySdt: {fileID: 0}
+  surveyConfidence: {fileID: 0}
+  surveyPlausibility: {fileID: 0}
   toggle_y: {fileID: 2039566315872722574}
   toggle_n: {fileID: 6293616474020007954}
+  detectionGroup: {fileID: 0}
+  confidenceGroup: {fileID: 0}
+  plausibilityGroup: {fileID: 0}
+  allToggles: []
   surveyDataRecorder: {fileID: 0}
-  groups: []
 --- !u!1 &6970307060114826888
 GameObject:
   m_ObjectHideFlags: 0
