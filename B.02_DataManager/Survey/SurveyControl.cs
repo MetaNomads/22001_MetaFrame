@@ -16,7 +16,7 @@ public class SurveyControl : MonoBehaviour
     [Tooltip("Confidence panel. Enabled/disabled externally via the event system.")]
     [SerializeField] private GameObject surveyConfidence;
 
-    [Tooltip("Plausibility panel. Shown/hidden by OnDetectionChanged when detection = Yes/No.")]
+    [Tooltip("Plausibility panel. Enabled/disabled externally via the event system.")]
     [SerializeField] private GameObject surveyPlausibility;
 
     [Header("Detection Toggles")]
@@ -81,19 +81,6 @@ public class SurveyControl : MonoBehaviour
     }
 
     // =========================================================================
-    // Detection changed — shows/hides surveyPlausibility
-    // Wire toggle_y.onValueChanged → OnDetectionChanged in the Inspector.
-    // =========================================================================
-
-    public void OnDetectionChanged(bool _) => OnDetectionChanged();
-
-    public void OnDetectionChanged()
-    {
-        if (surveyPlausibility == null) return;
-        surveyPlausibility.SetActive(toggle_y != null && toggle_y.isOn);
-    }
-
-    // =========================================================================
     // Push / Capture — called from ExperimentController.Step()
     // =========================================================================
 
@@ -103,8 +90,7 @@ public class SurveyControl : MonoBehaviour
 
         surveyDataRecorder.SetDetection(GetToggleValue(detectionGroup));
         surveyDataRecorder.SetConfidence(GetToggleValue(confidenceGroup));
-        surveyDataRecorder.SetPlausibility(
-            toggle_y != null && toggle_y.isOn ? GetToggleValue(plausibilityGroup) : null);
+        surveyDataRecorder.SetPlausibility(GetToggleValue(plausibilityGroup));
     }
 
     public void Capture(ExperimentDataRecorder recorder)
@@ -133,7 +119,6 @@ public class SurveyControl : MonoBehaviour
             }
         }
 
-        if (surveyPlausibility != null) surveyPlausibility.SetActive(false);
         surveyDataRecorder.Reset();
     }
 
