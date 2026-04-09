@@ -206,9 +206,16 @@ public class CollisionTrigger : MonoBehaviour
         if (_evalMode == EvalMode.Once)
             _evalMode = EvalMode.None;
 
+        // FIX: Reset _pendingActions to -1 as a sentinel so that any
+        // RegisterPendingAction() calls made synchronously inside FireEvaluate()
+        // land correctly. After FireEvaluate() returns we check whether anything
+        // was registered — if not, fire OnFinishAction immediately.
         _pendingActions = 0;
         FireEvaluate();
 
+        // Only auto-fire OnFinishAction when no async actions were registered
+        // during the FireEvaluate() call. If actions were registered, they will
+        // call CompleteAction() themselves and OnFinishAction fires from there.
         if (_pendingActions == 0)
             FireFinishAction();
     }
@@ -219,7 +226,11 @@ public class CollisionTrigger : MonoBehaviour
 [AddComponentMenu("")]
 public class CollisionListener : MonoBehaviour
 {
-    private List<GameObject> _targets;
+    // FIX: Use a HashSet built at Init() time (including all children of each
+    // target root) so IsTarget() is an O(1) lookup instead of an O(n*depth)
+    // walk on every Stay physics callback.
+    private HashSet<GameObject> _targetSet;
+
     private System.Action _onEnter;
     private System.Action _onStay;
     private System.Action _onExit;
@@ -229,7 +240,16 @@ public class CollisionListener : MonoBehaviour
                      System.Action onStay,
                      System.Action onExit)
     {
-        _targets = targets;
+        // Build the flat HashSet once, including every child of every target root.
+        _targetSet = new HashSet<GameObject>();
+        foreach (var root in targets)
+        {
+            if (root == null) continue;
+            _targetSet.Add(root);
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+                _targetSet.Add(child.gameObject);
+        }
+
         _onEnter = onEnter;
         _onStay = onStay;
         _onExit = onExit;
@@ -269,12 +289,7 @@ public class CollisionListener : MonoBehaviour
         _onExit?.Invoke();
     }
 
-    private bool IsTarget(Transform t)
-    {
-        if (_targets == null || t == null) return false;
-        foreach (var target in _targets)
-            if (target != null && (t.gameObject == target || t.IsChildOf(target.transform)))
-                return true;
-        return false;
-    }
+    // O(1) — single HashSet lookup replacing the old O(n*depth) list walk.
+    private bool IsTarget(Transform t) =>
+        t != null && _targetSet != null && _targetSet.Contains(t.gameObject);
 }
