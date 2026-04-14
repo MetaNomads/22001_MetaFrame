@@ -88,6 +88,13 @@ public class CollisionTrigger : MonoBehaviour
 
     private readonly List<CollisionListener> _listeners = new();
 
+    // Stored at Start() for direct physics queries in EvaluateNow().
+    private List<Collider> _resolvedZones   = new();
+    private List<Collider> _resolvedTargets = new();
+
+    // Reused by GetCurrentOverlaps() to avoid per-call allocation.
+    private readonly HashSet<Collider> _overlapScratch = new();
+
     // ── Fire helpers ──────────────────────────────────────────────────────────
 
     private void FireEnter()
@@ -127,6 +134,7 @@ public class CollisionTrigger : MonoBehaviour
         {
             if (col == null) { Debug.LogWarning($"[CollisionTrigger:{name}] Null entry in triggerColliders — skipped."); continue; }
             targetSet.Add(col);
+            _resolvedTargets.Add(col);
         }
 
         foreach (var go in triggerGameObjects)
@@ -136,7 +144,10 @@ public class CollisionTrigger : MonoBehaviour
             if (cols.Length == 0)
                 Debug.LogWarning($"[CollisionTrigger:{name}] triggerGameObject '{go.name}' has no colliders in hierarchy.");
             foreach (var col in cols)
+            {
                 targetSet.Add(col);
+                _resolvedTargets.Add(col);
+            }
         }
 
         if (targetSet.Count == 0)
@@ -167,6 +178,8 @@ public class CollisionTrigger : MonoBehaviour
 
     private void AddListener(Collider zone, HashSet<Collider> targetSet)
     {
+        _resolvedZones.Add(zone);
+
         // Destroy any stale CollisionListener left over from a previous run.
         var existing = zone.gameObject.GetComponent<CollisionListener>();
         if (existing != null) Destroy(existing);
@@ -186,43 +199,101 @@ public class CollisionTrigger : MonoBehaviour
     // ── Evaluate API ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Immediate snapshot check.
-    /// Fires OnEvaluate right now if any target is currently inside a zone.
-    /// Does nothing if no contact is active. No arming, no lasting state.
+    /// Immediate snapshot check using a direct physics query.
+    /// Fires OnEvaluate if any zone and target collider are currently overlapping,
+    /// regardless of whether disable/re-enable events have been processed yet.
+    /// Does nothing if no overlap is found. No arming, no lasting state.
     /// </summary>
     public void EvaluateNow()
     {
-        if (_activeContacts.Count > 0)
+        if (HasAnyOverlap())
             RunEvaluate(autoDisarm: false);
     }
 
     /// <summary>
     /// Arms and fires OnEvaluate on the next collision, then auto-disarms.
-    /// If already intersecting when called: fires immediately.
-    /// Re-call to arm again after it has fired.
+    /// If already intersecting when called (including after a disable/re-enable):
+    /// fires immediately via physics query. Re-call to arm again after it has fired.
     /// </summary>
     public void EvaluateFirstContact()
     {
         _evalMode = EvalMode.FirstContact;
 
-        if (_activeContacts.Count > 0)
+        var overlaps = GetCurrentOverlaps();
+        if (overlaps.Count > 0)
+        {
+            // Sync _activeContacts so the incoming OnTriggerEnter (next physics tick)
+            // is seen as a duplicate and does not double-fire.
+            foreach (var col in overlaps) _activeContacts.Add(col);
             RunEvaluate(autoDisarm: true);
+        }
     }
 
     /// <summary>
     /// Arms and fires OnEvaluate on every new collision (same as OnEnter logic)
     /// until StopEvaluating() is called.
-    /// Re-calling after StopEvaluating() re-arms cleanly.
+    /// If already intersecting when called (including after a disable/re-enable):
+    /// fires immediately via physics query. Re-calling after StopEvaluating() re-arms cleanly.
     /// </summary>
     public void EvaluateEveryContact()
     {
         _evalMode = EvalMode.EveryContact;
+
+        var overlaps = GetCurrentOverlaps();
+        if (overlaps.Count > 0)
+        {
+            // Sync _activeContacts so the incoming OnTriggerEnter (next physics tick)
+            // is seen as a duplicate and does not double-fire.
+            foreach (var col in overlaps) _activeContacts.Add(col);
+            RunEvaluate(autoDisarm: false);
+        }
     }
 
     /// <summary>Disarms EvaluateEveryContact() without firing.</summary>
     public void StopEvaluating()
     {
         _evalMode = EvalMode.None;
+    }
+
+    // Short-circuit bool check — returns as soon as any overlap is found.
+    // Used by EvaluateNow which only needs to know if overlap exists, not which ones.
+    private bool HasAnyOverlap()
+    {
+        foreach (var zone in _resolvedZones)
+        {
+            if (zone == null || !zone.enabled) continue;
+            foreach (var target in _resolvedTargets)
+            {
+                if (target == null || !target.enabled) continue;
+                if (Physics.ComputePenetration(
+                        zone,   zone.transform.position,   zone.transform.rotation,
+                        target, target.transform.position, target.transform.rotation,
+                        out _, out _))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    // Returns all currently overlapping target colliders into _overlapScratch.
+    // Reuses the same HashSet each call — caller must not hold onto the reference.
+    private HashSet<Collider> GetCurrentOverlaps()
+    {
+        _overlapScratch.Clear();
+        foreach (var zone in _resolvedZones)
+        {
+            if (zone == null || !zone.enabled) continue;
+            foreach (var target in _resolvedTargets)
+            {
+                if (target == null || !target.enabled) continue;
+                if (Physics.ComputePenetration(
+                        zone,   zone.transform.position,   zone.transform.rotation,
+                        target, target.transform.position, target.transform.rotation,
+                        out _, out _))
+                    _overlapScratch.Add(target);
+            }
+        }
+        return _overlapScratch;
     }
 
     // ── State API ─────────────────────────────────────────────────────────────
