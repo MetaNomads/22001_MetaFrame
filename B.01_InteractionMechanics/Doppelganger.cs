@@ -135,6 +135,12 @@ public class DoppelgangerPhysicsHandler : MonoBehaviour
     private Collider[]    _sourceCols;
     private bool _restored;
 
+    // FIX: maximum seconds to wait for the doppelganger to separate from the source.
+    // Without this, complex or concave geometry that never fully separates would keep
+    // Physics.ComputePenetration running every FixedUpdate indefinitely, causing a
+    // sustained framerate drop for the lifetime of the doppelganger object.
+    private const float OverlapTimeoutSeconds = 3f;
+
     public void Init(
         Rigidbody[]   dupRbs,
         Collider[]    dupCols,
@@ -160,8 +166,25 @@ public class DoppelgangerPhysicsHandler : MonoBehaviour
 
         if (wasOverlapping)
         {
+            float elapsed = 0f;
+
             while (CheckPenetration())
+            {
+                elapsed += Time.fixedDeltaTime;
+
+                if (elapsed >= OverlapTimeoutSeconds)
+                {
+                    // FIX: geometry never separated — force Restore() rather than
+                    // spinning forever and burning physics time every fixed frame.
+                    Debug.LogWarning(
+                        $"[DoppelgangerPhysicsHandler] '{gameObject.name}' overlap timeout " +
+                        $"({OverlapTimeoutSeconds}s) — forcing Restore(). " +
+                        "Check source geometry for concave or non-convex colliders.");
+                    break;
+                }
+
                 yield return new WaitForFixedUpdate();
+            }
         }
 
         Restore();

@@ -89,11 +89,16 @@ public class CollisionTrigger : MonoBehaviour
     private readonly List<CollisionListener> _listeners = new();
 
     // Stored at Start() for direct physics queries in EvaluateNow().
-    private List<Collider> _resolvedZones   = new();
+    private List<Collider> _resolvedZones = new();
     private List<Collider> _resolvedTargets = new();
 
     // Reused by GetCurrentOverlaps() to avoid per-call allocation.
     private readonly HashSet<Collider> _overlapScratch = new();
+
+    // FIX: track which listener this CollisionTrigger owns per zone so we only
+    // ever destroy our own — not listeners belonging to other CollisionTriggers
+    // on the same zone GameObject.
+    private readonly Dictionary<Collider, CollisionListener> _ownedListeners = new();
 
     // ── Fire helpers ──────────────────────────────────────────────────────────
 
@@ -128,6 +133,39 @@ public class CollisionTrigger : MonoBehaviour
 
     private void Start()
     {
+        Register();
+    }
+
+    private void OnEnable()
+    {
+        // Re-register listeners if they were torn down by OnDisable.
+        // Guard against double-registration on the very first enable (Start handles that).
+        if (_resolvedZones.Count == 0 && _resolvedTargets.Count == 0)
+            return;
+
+        Register();
+    }
+
+    private void OnDisable()
+    {
+        Unregister();
+    }
+
+    private void OnDestroy()
+    {
+        Unregister();
+    }
+
+    // ── Registration helpers ──────────────────────────────────────────────────
+
+    private void Register()
+    {
+        // Always start clean so re-enable doesn't double-add.
+        Unregister();
+
+        _resolvedZones.Clear();
+        _resolvedTargets.Clear();
+
         var targetSet = new HashSet<Collider>();
 
         foreach (var col in triggerColliders)
@@ -176,24 +214,31 @@ public class CollisionTrigger : MonoBehaviour
             Debug.LogWarning($"[CollisionTrigger:{name}] No zone colliders found — component will not detect any contacts.");
     }
 
-    private void AddListener(Collider zone, HashSet<Collider> targetSet)
-    {
-        _resolvedZones.Add(zone);
-
-        // Destroy any stale CollisionListener left over from a previous run.
-        var existing = zone.gameObject.GetComponent<CollisionListener>();
-        if (existing != null) Destroy(existing);
-
-        var listener = zone.gameObject.AddComponent<CollisionListener>();
-        listener.Init(targetSet, OnContactEnter, OnContactExit);
-        _listeners.Add(listener);
-    }
-
-    private void OnDestroy()
+    private void Unregister()
     {
         foreach (var l in _listeners)
             if (l != null) Destroy(l);
         _listeners.Clear();
+        _ownedListeners.Clear();
+        _activeContacts.Clear();
+    }
+
+    private void AddListener(Collider zone, HashSet<Collider> targetSet)
+    {
+        _resolvedZones.Add(zone);
+
+        // FIX: only destroy the CollisionListener that THIS CollisionTrigger previously
+        // added to this zone. Destroying all listeners on the zone would silently break
+        // any other CollisionTrigger that shares the same zone GameObject, and the
+        // resulting burst of GetComponents + Destroy + AddComponent across many objects
+        // spawning in the same frame was the primary cause of the 90→30fps spike.
+        if (_ownedListeners.TryGetValue(zone, out var previous) && previous != null)
+            Destroy(previous);
+
+        var listener = zone.gameObject.AddComponent<CollisionListener>();
+        listener.Init(targetSet, OnContactEnter, OnContactExit);
+        _listeners.Add(listener);
+        _ownedListeners[zone] = listener;
     }
 
     // ── Evaluate API ──────────────────────────────────────────────────────────
@@ -266,7 +311,7 @@ public class CollisionTrigger : MonoBehaviour
             {
                 if (target == null || !target.enabled) continue;
                 if (Physics.ComputePenetration(
-                        zone,   zone.transform.position,   zone.transform.rotation,
+                        zone, zone.transform.position, zone.transform.rotation,
                         target, target.transform.position, target.transform.rotation,
                         out _, out _))
                     return true;
@@ -287,7 +332,7 @@ public class CollisionTrigger : MonoBehaviour
             {
                 if (target == null || !target.enabled) continue;
                 if (Physics.ComputePenetration(
-                        zone,   zone.transform.position,   zone.transform.rotation,
+                        zone, zone.transform.position, zone.transform.rotation,
                         target, target.transform.position, target.transform.rotation,
                         out _, out _))
                     _overlapScratch.Add(target);
@@ -301,10 +346,10 @@ public class CollisionTrigger : MonoBehaviour
     /// <summary>Reset firstContactOnly spent flags so OnEnter and OnExit can fire again.</summary>
     public void ResetTrigger()
     {
-        _enterSpent     = false;
-        _exitSpent      = false;
+        _enterSpent = false;
+        _exitSpent = false;
         _pendingActions = 0;
-        _evalMode       = EvalMode.None;
+        _evalMode = EvalMode.None;
         _activeContacts.Clear();
     }
 
@@ -312,7 +357,7 @@ public class CollisionTrigger : MonoBehaviour
     public void SpendTrigger()
     {
         _enterSpent = true;
-        _exitSpent  = true;
+        _exitSpent = true;
     }
 
     // ── Pending Action API ────────────────────────────────────────────────────
@@ -355,8 +400,8 @@ public class CollisionTrigger : MonoBehaviour
 
         switch (_evalMode)
         {
-            case EvalMode.FirstContact:  RunEvaluate(autoDisarm: true);  break;
-            case EvalMode.EveryContact:  RunEvaluate(autoDisarm: false); break;
+            case EvalMode.FirstContact: RunEvaluate(autoDisarm: true); break;
+            case EvalMode.EveryContact: RunEvaluate(autoDisarm: false); break;
         }
     }
 
@@ -373,9 +418,9 @@ public class CollisionTrigger : MonoBehaviour
 [AddComponentMenu("")]
 public class CollisionListener : MonoBehaviour
 {
-    private HashSet<Collider>        _targets;
-    private System.Action<Collider>  _onEnter;
-    private System.Action<Collider>  _onExit;
+    private HashSet<Collider> _targets;
+    private System.Action<Collider> _onEnter;
+    private System.Action<Collider> _onExit;
 
     public void Init(HashSet<Collider> targets,
                      System.Action<Collider> onEnter,
@@ -383,7 +428,7 @@ public class CollisionListener : MonoBehaviour
     {
         _targets = targets;
         _onEnter = onEnter;
-        _onExit  = onExit;
+        _onExit = onExit;
     }
 
     private void OnCollisionEnter(Collision c)

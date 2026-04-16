@@ -8,7 +8,11 @@ public class FloatUpward : MonoBehaviour, ITrackableAction
     [SerializeField] private float distance = 1f;
     [SerializeField] private float duration = 1f;
 
-    private Transform Target => target != null ? target.transform : transform;
+    // FIX: was a property evaluated every Update() frame:
+    //   private Transform Target => target != null ? target.transform : transform;
+    // That re-evaluated the null check and .transform lookup on every call.
+    // Resolved once at Run() time and cached for the duration of the animation.
+    private Transform _resolvedTarget;
 
     private Vector3       _startPosition;
     private Vector3       _targetPosition;
@@ -22,7 +26,8 @@ public class FloatUpward : MonoBehaviour, ITrackableAction
     /// <summary>Start and call onComplete when finished. Used by CollisionTrigger.RunTracked().</summary>
     public void Run(System.Action onComplete)
     {
-        _startPosition  = Target.position;
+        _resolvedTarget = target != null ? target.transform : transform;
+        _startPosition  = _resolvedTarget.position;
         _targetPosition = _startPosition + Vector3.up * distance;
         _elapsed        = 0f;
         _running        = true;
@@ -36,12 +41,12 @@ public class FloatUpward : MonoBehaviour, ITrackableAction
         _elapsed += Time.deltaTime;
         float t   = Mathf.Clamp01(_elapsed / duration);
 
-        Target.position = Vector3.Lerp(_startPosition, _targetPosition, Mathf.SmoothStep(0f, 1f, t));
+        _resolvedTarget.position = Vector3.Lerp(_startPosition, _targetPosition, Mathf.SmoothStep(0f, 1f, t));
 
         if (t >= 1f)
         {
-            Target.position = _targetPosition;
-            _running        = false;
+            _resolvedTarget.position = _targetPosition;
+            _running                 = false;
             _onComplete?.Invoke();
             _onComplete = null;
         }

@@ -326,11 +326,14 @@ namespace MetaFrame.Data
         {
             if (_currentTrial == null) return;
 
+            // FIX: was from.ToString(), to.ToString(), sender.gameObject.name —
+            // all three allocate new strings on every call. AnomalyStateName()
+            // returns a pre-allocated static string; CachedName is set at Start().
             _currentTrial.anomalyTransitions.Add(new TransitionEvent(
-                from:   from.ToString(),
-                to:     to.ToString(),
+                from:   AnomalyStateManager.AnomalyStateName(from),
+                to:     AnomalyStateManager.AnomalyStateName(to),
                 time:   timestamp,
-                source: sender.gameObject.name));
+                source: sender.CachedName));
         }
 
         // ── File Writing ──────────────────────────────────────────────────────────

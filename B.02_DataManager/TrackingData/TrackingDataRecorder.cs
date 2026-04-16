@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -13,6 +13,10 @@ namespace MetaFrame.Data
     public class TrackingDataRecorder : MonoBehaviour
     {
         [SerializeField] private DataManager _dataManager;
+
+        [BoxGroup("Output Settings")]
+        [Tooltip("Optional — when assigned, the session folder will be prefixed with SubjectXX_. Falls back to FindObjectOfType if left empty.")]
+        [SerializeField] private MetaFrame.State.ExperimentSequencer _experimentSequencer;
 
         [BoxGroup("Output Settings")]
         [FolderPath] public string _savePath;
@@ -50,7 +54,7 @@ namespace MetaFrame.Data
         public bool startRecord { get; private set; }
         private bool _isPaused = false;
         private string startTime;
-        public string sessionPath;
+        [HideInInspector] public string sessionPath;
         private float _recordingInterval;
 
         // Optimized data structures
@@ -223,7 +227,28 @@ namespace MetaFrame.Data
         private void CreateSessionDirectory()
         {
             startTime = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            sessionPath = Path.Combine(_savePath, $"{_folderPrefix}_{startTime}");
+
+            // Resolve sequencer — use the serialized reference if set, otherwise search the scene
+            if (_experimentSequencer == null)
+#if UNITY_2023_1_OR_NEWER
+                _experimentSequencer = UnityEngine.Object.FindFirstObjectByType<MetaFrame.State.ExperimentSequencer>();
+#else
+                _experimentSequencer = UnityEngine.Object.FindObjectOfType<MetaFrame.State.ExperimentSequencer>();
+#endif
+
+            string folderName;
+            if (_experimentSequencer != null && _experimentSequencer.subjectID > 0)
+            {
+                string subjectPrefix = $"Subject{_experimentSequencer.subjectID:D2}";
+                folderName = $"{subjectPrefix}_{_folderPrefix}_{startTime}";
+                Debug.Log($"[DataRecorder] ExperimentSequencer found — using subject prefix '{subjectPrefix}'.");
+            }
+            else
+            {
+                folderName = $"{_folderPrefix}_{startTime}";
+            }
+
+            sessionPath = Path.Combine(_savePath, folderName);
             Directory.CreateDirectory(sessionPath);
 
             Debug.Log($"[DataRecorder] Session directory created: {sessionPath}");

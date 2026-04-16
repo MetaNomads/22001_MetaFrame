@@ -221,17 +221,48 @@ namespace MetaFrame.State
         private int                _pendingMoveTo   = -1;
         private int                _pendingRemove   = -1;
 
+        // ── Static caches ─────────────────────────────────────────────────────
+        // GUIContent and GUIStyle are managed objects — allocating them inside
+        // DrawSlotBlock (called per slot per repaint) generates steady GC pressure.
+
+        private static readonly GUIContent _gcIdleState      = new("Idle State", "Which state to enter on Start.");
+        private static readonly GUIContent _gcStateDef       = new("State Definition");
+        private static readonly GUIContent _gcAllowedFrom    = new("Allowed From", "Which states may transition into this one.\nEmpty = any state allowed.");
+        private static readonly GUIContent _gcOnEnter        = new("On Enter");
+        private static readonly GUIContent _gcOnExit         = new("On Exit");
+
+        // BoldLabel style with active-state highlight colour — lazily initialised
+        // because EditorStyles is unavailable before the first OnEnable.
+        // DrawSlotBlock was calling new GUIStyle(EditorStyles.boldLabel) per slot per repaint.
+        private static GUIStyle _boldLabelNormal;
+        private static GUIStyle _boldLabelActive;
+        private static GUIStyle BoldLabelNormal => _boldLabelNormal ??= new GUIStyle(EditorStyles.boldLabel);
+        private static GUIStyle BoldLabelActive
+        {
+            get
+            {
+                if (_boldLabelActive == null)
+                {
+                    _boldLabelActive = new GUIStyle(EditorStyles.boldLabel);
+                    _boldLabelActive.normal.textColor = new Color(0.4f, 1f, 0.55f);
+                }
+                return _boldLabelActive;
+            }
+        }
+
         private void OnEnable()
         {
             _slotsProp     = serializedObject.FindProperty("slots");
             _idleStateProp = serializedObject.FindProperty("idleState");
-            EditorApplication.update += Repaint;
+            // FIX: removed EditorApplication.update += Repaint which forced the
+            // GSM inspector to redraw at ~100Hz even in edit mode.
+            // RequiresConstantRepaint() achieves live play-mode updates without
+            // burning editor cycles when nothing is changing.
         }
 
-        private void OnDisable()
-        {
-            EditorApplication.update -= Repaint;
-        }
+        private void OnDisable() { }
+
+        public override bool RequiresConstantRepaint() => Application.isPlaying;
 
         public override void OnInspectorGUI()
         {
@@ -242,8 +273,7 @@ namespace MetaFrame.State
             EditorGUILayout.Space(6);
 
             // Idle state — asset picker
-            EditorGUILayout.PropertyField(_idleStateProp,
-                new GUIContent("Idle State", "Which state to enter on Start."));
+            EditorGUILayout.PropertyField(_idleStateProp, _gcIdleState);
 
             EditorGUILayout.Space(8);
             EditorGUILayout.LabelField("States", EditorStyles.boldLabel);
@@ -323,9 +353,7 @@ namespace MetaFrame.State
                 _foldouts[index] = !_foldouts[index];
 
             // Label — highlighted if this is the current active state
-            var labelStyle = new GUIStyle(EditorStyles.boldLabel);
-            if (isCurrent)
-                labelStyle.normal.textColor = new Color(0.4f, 1f, 0.55f);
+            var labelStyle = isCurrent ? BoldLabelActive : BoldLabelNormal;
             EditorGUI.LabelField(labelRect, header, labelStyle);
 
             // Force Enter / Force Idle buttons — in header, play mode only
@@ -358,7 +386,7 @@ namespace MetaFrame.State
 
                 // Asset picker
                 EditorGUI.BeginChangeCheck();
-                EditorGUILayout.PropertyField(defProp, new GUIContent("State Definition"));
+                EditorGUILayout.PropertyField(defProp, _gcStateDef);
                 bool defChanged = EditorGUI.EndChangeCheck();
 
                 // Only show the rest once an asset is assigned
@@ -367,10 +395,7 @@ namespace MetaFrame.State
                     EditorGUILayout.Space(4);
 
                     // Allowed From — checklist of other assigned slots
-                    EditorGUILayout.LabelField(
-                        new GUIContent("Allowed From",
-                            "Which states may transition into this one.\nEmpty = any state allowed."),
-                        EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField(_gcAllowedFrom, EditorStyles.boldLabel);
 
                     EditorGUI.indentLevel++;
                     bool anyOther = false;
@@ -403,8 +428,8 @@ namespace MetaFrame.State
                     EditorGUI.indentLevel--;
 
                     EditorGUILayout.Space(4);
-                    EditorGUILayout.PropertyField(onEnter, new GUIContent("On Enter"));
-                    EditorGUILayout.PropertyField(onExit,  new GUIContent("On Exit"));
+                    EditorGUILayout.PropertyField(onEnter, _gcOnEnter);
+                    EditorGUILayout.PropertyField(onExit,  _gcOnExit);
                 }
                 else
                 {
@@ -455,37 +480,64 @@ namespace MetaFrame.State
     [CustomPropertyDrawer(typeof(StateIndexAttribute))]
     public class StateIndexDrawer : PropertyDrawer
     {
+        // FIX: cache the GSM reference and name array so FindObjectOfType and
+        // StateNameArray() (which allocates a new string[]) are not called on
+        // every OnGUI pass for every [StateIndex] field.
+        private static GameStateManager _cachedGsm;
+        private static string[]         _cachedNames;
+        private static int              _cachedSlotCount = -1;
+
         public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
         {
-            var gsm = GetGSM();
-            if (gsm == null)
+            RefreshCache();
+
+            if (_cachedGsm == null)
             {
                 EditorGUI.HelpBox(position, "No GameStateManager in scene.", MessageType.Warning);
                 return;
             }
 
-            string[] names = gsm.StateNameArray();
-            if (names.Length == 0)
+            if (_cachedNames == null || _cachedNames.Length == 0)
             {
                 EditorGUI.HelpBox(position, "No states defined in GameStateManager.", MessageType.Warning);
                 return;
             }
 
-            int current = Mathf.Clamp(property.intValue, 0, names.Length - 1);
+            int current = Mathf.Clamp(property.intValue, 0, _cachedNames.Length - 1);
             EditorGUI.BeginChangeCheck();
-            int chosen = EditorGUI.Popup(position, label.text, current, names);
+            int chosen = EditorGUI.Popup(position, label.text, current, _cachedNames);
             if (EditorGUI.EndChangeCheck())
                 property.intValue = chosen;
         }
 
-        private static GameStateManager GetGSM()
+        private static void RefreshCache()
         {
-            if (GameStateManager.instance != null) return GameStateManager.instance;
+            if (_cachedGsm != GameStateManager.instance)
+            {
+                _cachedGsm       = GameStateManager.instance;
+                _cachedNames     = null;
+                _cachedSlotCount = -1;
+            }
+
+            if (_cachedGsm == null)
+            {
 #if UNITY_2023_1_OR_NEWER
-            return UnityEngine.Object.FindFirstObjectByType<GameStateManager>();
+                _cachedGsm = UnityEngine.Object.FindFirstObjectByType<GameStateManager>();
 #else
-            return UnityEngine.Object.FindObjectOfType<GameStateManager>();
+                _cachedGsm = UnityEngine.Object.FindObjectOfType<GameStateManager>();
 #endif
+                _cachedNames     = null;
+                _cachedSlotCount = -1;
+            }
+
+            if (_cachedGsm == null) return;
+
+            int slotCount = _cachedGsm.SlotCount;
+            if (_cachedNames == null || _cachedSlotCount != slotCount)
+            {
+                _cachedNames     = _cachedGsm.StateNameArray();
+                _cachedSlotCount = slotCount;
+            }
         }
     }
 

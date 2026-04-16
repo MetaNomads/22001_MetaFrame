@@ -15,8 +15,8 @@ namespace MetaFrame.State
     [System.Flags]
     public enum AnomalyState
     {
-        Disabled  = 1 << 0,
-        Active    = 1 << 1,
+        Disabled = 1 << 0,
+        Active = 1 << 1,
         Triggered = 1 << 2,
         Completed = 1 << 3,
     }
@@ -74,37 +74,44 @@ namespace MetaFrame.State
         /// </summary>
         public bool Evaluate(int currentStateIndex, AnomalyState anomalyState)
         {
-            if (gameStateMode    == ConditionMode.Disabled &&
+            if (gameStateMode == ConditionMode.Disabled &&
                 anomalyStateMode == ConditionMode.Disabled &&
-                conditionMode    == ConditionMode.Disabled) return true;
+                conditionMode == ConditionMode.Disabled) return true;
 
             bool stateResult     = currentStateIndex == stateIndex;
             bool anomalyResult   = (anomalyStates & anomalyState) != 0;
             bool conditionResult = EvaluateConditionGroup();
 
-            bool final = EvaluateGroup(
-                (gameStateMode,    stateResult),
-                (anomalyStateMode, anomalyResult),
-                (conditionMode,    conditionResult));
-
-            return final;
+            // FIX: was EvaluateGroup(params (ConditionMode,bool)[]) which allocated
+            // a new tuple array on the heap every call. EvaluateTriggers() calls
+            // Evaluate() on every trigger in every ASM on every GSM or anomaly
+            // state change — the params alloc was constant GC churn during gameplay.
+            // Inlined to three explicit checks with zero allocations.
+            return EvaluateGroup(
+                gameStateMode,    stateResult,
+                anomalyStateMode, anomalyResult,
+                conditionMode,    conditionResult);
         }
 
-        private static bool EvaluateGroup(params (ConditionMode mode, bool result)[] entries)
+        private static bool EvaluateGroup(
+            ConditionMode gsMode,  bool gsResult,
+            ConditionMode aMode,   bool aResult,
+            ConditionMode tMode,   bool tResult)
         {
-            bool orPresent   = false;
-            bool orSatisfied = false;
+            bool orPresent = false, orSatisfied = false;
 
-            foreach (var (mode, result) in entries)
-            {
-                if (mode == ConditionMode.Disabled) continue;
-                if (mode == ConditionMode.AND && !result) return false;
-                if (mode == ConditionMode.OR)
-                {
-                    orPresent = true;
-                    if (result) orSatisfied = true;
-                }
-            }
+            // Game state
+            if (gsMode == ConditionMode.AND && !gsResult) return false;
+            if (gsMode == ConditionMode.OR) { orPresent = true; if (gsResult) orSatisfied = true; }
+
+            // Anomaly state
+            if (aMode == ConditionMode.AND && !aResult) return false;
+            if (aMode == ConditionMode.OR) { orPresent = true; if (aResult) orSatisfied = true; }
+
+            // Script conditions
+            if (tMode == ConditionMode.AND && !tResult) return false;
+            if (tMode == ConditionMode.OR) { orPresent = true; if (tResult) orSatisfied = true; }
+
             return !orPresent || orSatisfied;
         }
 
@@ -112,22 +119,28 @@ namespace MetaFrame.State
         {
             if (conditions == null || conditions.Count == 0) return true;
 
-            var entries = new List<(ConditionMode mode, bool result)>();
+            bool orPresent = false;
+            bool orSatisfied = false;
+
             foreach (var entry in conditions)
             {
                 if (entry == null || entry.mode == ConditionMode.Disabled) continue;
                 bool r = entry.script is IAnomalyCondition c && c.Evaluate();
-                entries.Add((entry.mode, r));
+                if (entry.mode == ConditionMode.AND && !r) return false;
+                if (entry.mode == ConditionMode.OR)
+                {
+                    orPresent = true;
+                    if (r) orSatisfied = true;
+                }
             }
 
-            if (entries.Count == 0) return true;
-            return EvaluateGroup(entries.ToArray());
+            return !orPresent || orSatisfied;
         }
 
         public string AutoLabel()
         {
             var andParts = new List<string>();
-            var orParts  = new List<string>();
+            var orParts = new List<string>();
 
             var gsm = GameStateManager.instance;
 
@@ -135,21 +148,21 @@ namespace MetaFrame.State
             {
                 string stateLabel = gsm != null ? gsm.StateName(stateIndex) : $"[{stateIndex}]";
                 if (gameStateMode == ConditionMode.AND) andParts.Add(stateLabel);
-                else                                     orParts.Add(stateLabel);
+                else orParts.Add(stateLabel);
             }
 
             if (anomalyStateMode == ConditionMode.AND) andParts.Add(anomalyStates.ToString());
-            if (anomalyStateMode == ConditionMode.OR)  orParts.Add(anomalyStates.ToString());
+            if (anomalyStateMode == ConditionMode.OR) orParts.Add(anomalyStates.ToString());
 
             int active = conditions?.FindAll(e => e?.mode != ConditionMode.Disabled).Count ?? 0;
             if (conditionMode == ConditionMode.AND) andParts.Add($"{active} condition(s)");
-            if (conditionMode == ConditionMode.OR)  orParts.Add($"{active} condition(s)");
+            if (conditionMode == ConditionMode.OR) orParts.Add($"{active} condition(s)");
 
             if (andParts.Count == 0 && orParts.Count == 0) return "(always fires)";
 
             var segments = new List<string>();
             if (andParts.Count > 0) segments.Add(string.Join(" AND ", andParts));
-            if (orParts.Count  > 0) segments.Add(string.Join(" OR  ", orParts));
+            if (orParts.Count > 0) segments.Add(string.Join(" OR  ", orParts));
             return string.Join("  |  ", segments);
         }
     }
@@ -167,16 +180,44 @@ namespace MetaFrame.State
         [Header("Triggers")]
         [SerializeField] private List<AnomalyTrigger> triggers = new();
 
-        private AnomalyState          _currentAnomalyState = AnomalyState.Disabled;
-        private int                   _currentStateIndex   = -1;
-        private int                   _pendingActions;
-        private readonly HashSet<AnomalyAction> _activeActions   = new();
-        private readonly HashSet<int>           _enteredTriggers = new();
+        private AnomalyState _currentAnomalyState = AnomalyState.Disabled;
+        private int _currentStateIndex = -1;
+        private int _pendingActions;
+        private readonly HashSet<AnomalyAction> _activeActions = new();
+        private readonly HashSet<int> _enteredTriggers = new();
 
-        public AnomalyState      CurrentAnomalyState => _currentAnomalyState;
-        public int               CurrentStateIndex   => _currentStateIndex;
-        public AnomalyDefinition AnomalyToTrigger    => anomalyToTrigger;
-        public int               PendingActions      => _pendingActions;
+        // FIX: cache gameObject.name — Unity's gameObject.name allocates a new
+        // string on every access. This is used by ExperimentDataRecorder on every
+        // anomaly state transition during a trial.
+        private string _cachedGameObjectName;
+        public  string CachedName => _cachedGameObjectName;
+
+        // FIX: static lookup for AnomalyState enum → string.
+        // AnomalyState.ToString() allocates a new string every call.
+        // Used by ExperimentDataRecorder.OnAnomalyStateChanged per transition.
+        private static readonly string[] _anomalyStateNames =
+        {
+            "Disabled",   // bit 0 (1 << 0)
+            "Active",     // bit 1 (1 << 1)
+            "Triggered",  // bit 2 (1 << 2)
+            "Completed",  // bit 3 (1 << 3)
+        };
+
+        // Returns the cached name string for a given AnomalyState flag value.
+        // Falls back to ToString() for unexpected values.
+        public static string AnomalyStateName(AnomalyState state) => state switch
+        {
+            AnomalyState.Disabled  => _anomalyStateNames[0],
+            AnomalyState.Active    => _anomalyStateNames[1],
+            AnomalyState.Triggered => _anomalyStateNames[2],
+            AnomalyState.Completed => _anomalyStateNames[3],
+            _                      => state.ToString(),
+        };
+
+        public AnomalyState CurrentAnomalyState => _currentAnomalyState;
+        public int CurrentStateIndex => _currentStateIndex;
+        public AnomalyDefinition AnomalyToTrigger => anomalyToTrigger;
+        public int PendingActions => _pendingActions;
 
         /// <summary>Fires whenever an ASM is enabled in the scene. Recorder uses this to subscribe.</summary>
         public static event Action<AnomalyStateManager> OnRegistered;
@@ -200,7 +241,7 @@ namespace MetaFrame.State
         public static void BroadcastTrialBegan(AnomalyDefinition anomaly)
         {
             _currentTrialAnomaly = anomaly;
-            foreach (var asm in _allAsms)
+            foreach (var asm in _allAsms.ToList())
                 asm.ActivateAnomaly(anomaly);
         }
 
@@ -210,12 +251,13 @@ namespace MetaFrame.State
             _currentTrialAnomaly = null;
         }
 
-        private static readonly List<AnomalyStateManager> _allAsms = new();
+        private static readonly HashSet<AnomalyStateManager> _allAsms = new();
 
         // ── Lifecycle ──────────────────────────────────────────────
 
         private void Start()
         {
+            _cachedGameObjectName = gameObject.name;
             SetupObjectAtStart();
             _started = true;
         }
@@ -285,7 +327,7 @@ namespace MetaFrame.State
             if (gsm == null) return;
             _currentStateIndex = gsm.CurrentStateIndex;
 
-            bool isSelected      = _currentTrialAnomaly != null && _currentTrialAnomaly == anomalyToTrigger;
+            bool isSelected = _currentTrialAnomaly != null && _currentTrialAnomaly == anomalyToTrigger;
             _currentAnomalyState = isSelected ? AnomalyState.Active : AnomalyState.Disabled;
 
             EvaluateTriggers();
@@ -307,7 +349,7 @@ namespace MetaFrame.State
                 }
             }
 
-            AnomalyState prev    = _currentAnomalyState;
+            AnomalyState prev = _currentAnomalyState;
             _currentAnomalyState = newState;
             OnAnomalyStateChanged?.Invoke(this, prev, newState, DateTime.Now);
             EvaluateTriggers();
@@ -317,10 +359,9 @@ namespace MetaFrame.State
         {
             for (int i = 0; i < triggers.Count; i++)
             {
-                var  trigger    = triggers[i];
-                bool passes     = trigger.Evaluate(_currentStateIndex, _currentAnomalyState);
-                bool wasActive  = _enteredTriggers.Contains(i);
-                string label    = string.IsNullOrEmpty(trigger.triggerName) ? $"[{i}]" : $"[{i}]'{trigger.triggerName}'";
+                var trigger = triggers[i];
+                bool passes = trigger.Evaluate(_currentStateIndex, _currentAnomalyState);
+                bool wasActive = _enteredTriggers.Contains(i);
 
                 if (passes && !wasActive)
                 {
