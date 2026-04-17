@@ -22,230 +22,210 @@ namespace MetaFrame.Data
             var data = new Dictionary<string, object>();
 
             if (_faceExpressions.ValidExpressions)
-            { 
+            {
+                // FIX: All AU entries previously used anonymous objects:
+                //   new { InnerBrowRaiserL = au1.InnerBrowRaiserL, InnerBrowRaiserR = au1.InnerBrowRaiserR }
+                // Anonymous objects are heap-allocated reference types. With ~25 AUs enabled
+                // and recording at 100Hz, this produced ~2500 heap allocations per second,
+                // continuously feeding the GC. Additionally, ApplyPrecisionToObject used
+                // reflection to round these values — reflection is extremely expensive on
+                // a hot path.
+                //
+                // Replaced with float[] which:
+                //   - Is a single heap allocation (vs one per AU per field)
+                //   - Goes through the fast float[] branch in ApplyPrecisionToValue
+                //   - Eliminates all reflection from the recording pipeline
+                //
+                // Array layout is documented per entry below.
+                // ValidExpressions is checked above so GetWeight() calls are safe here
+                // without the redundant ?. null-conditional guard used in DataStructure.
+
                 // Upper Face AUs
                 if (RecordConfig.AU1_InnerBrowRaiser)
-                {
-                    var au1 = Data.AU1_InnerBrowRaiser;
-                    data["AU1_InnerBrowRaiser"] = new { InnerBrowRaiserL = au1.InnerBrowRaiserL, InnerBrowRaiserR = au1.InnerBrowRaiserR };
-                }
+                    // [InnerBrowRaiserL, InnerBrowRaiserR]
+                    data["AU1_InnerBrowRaiser"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.InnerBrowRaiserL),
+                        _faceExpressions.GetWeight(FaceExpression.InnerBrowRaiserR) };
 
                 if (RecordConfig.AU2_OuterBrowRaiser)
-                {
-                    var au2 = Data.AU2_OuterBrowRaiser;
-                    data["AU2_OuterBrowRaiser"] = new { OuterBrowRaiserL = au2.OuterBrowRaiserL, OuterBrowRaiserR = au2.OuterBrowRaiserR };
-                }
+                    // [OuterBrowRaiserL, OuterBrowRaiserR]
+                    data["AU2_OuterBrowRaiser"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.OuterBrowRaiserL),
+                        _faceExpressions.GetWeight(FaceExpression.OuterBrowRaiserR) };
 
                 if (RecordConfig.AU4_BrowLowerer)
-                {
-                    var au4 = Data.AU4_BrowLowerer;
-                    data["AU4_BrowLowerer"] = new { BrowLowererL = au4.BrowLowererL, BrowLowererR = au4.BrowLowererR };
-                }
+                    // [BrowLowererL, BrowLowererR]
+                    data["AU4_BrowLowerer"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.BrowLowererL),
+                        _faceExpressions.GetWeight(FaceExpression.BrowLowererR) };
 
                 if (RecordConfig.AU5_UpperLidRaiser)
-                {
-                    var au5 = Data.AU5_UpperLidRaiser;
-                    data["AU5_UpperLidRaiser"] = new { UpperLidRaiserL = au5.UpperLidRaiserL, UpperLidRaiserR = au5.UpperLidRaiserR };
-                }
+                    // [UpperLidRaiserL, UpperLidRaiserR]
+                    data["AU5_UpperLidRaiser"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.UpperLidRaiserL),
+                        _faceExpressions.GetWeight(FaceExpression.UpperLidRaiserR) };
 
                 if (RecordConfig.AU6_CheekRaiser)
-                {
-                    var au6 = Data.AU6_CheekRaiser;
-                    data["AU6_CheekRaiser"] = new { CheekRaiserL = au6.CheekRaiserL, CheekRaiserR = au6.CheekRaiserR };
-                }
+                    // [CheekRaiserL, CheekRaiserR]
+                    data["AU6_CheekRaiser"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.CheekRaiserL),
+                        _faceExpressions.GetWeight(FaceExpression.CheekRaiserR) };
 
                 if (RecordConfig.AU7_LidTightener)
-                {
-                    var au7 = Data.AU7_LidTightener;
-                    data["AU7_LidTightener"] = new { LidTightenerL = au7.LidTightenerL, LidTightenerR = au7.LidTightenerR };
-                }
+                    // [LidTightenerL, LidTightenerR]
+                    data["AU7_LidTightener"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LidTightenerL),
+                        _faceExpressions.GetWeight(FaceExpression.LidTightenerR) };
 
                 if (RecordConfig.AU9_NoseWrinkler)
-                {
-                    var au9 = Data.AU9_NoseWrinkler;
-                    data["AU9_NoseWrinkler"] = new { NoseWrinklerL = au9.NoseWrinklerL, NoseWrinklerR = au9.NoseWrinklerR };
-                }
+                    // [NoseWrinklerL, NoseWrinklerR]
+                    data["AU9_NoseWrinkler"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.NoseWrinklerL),
+                        _faceExpressions.GetWeight(FaceExpression.NoseWrinklerR) };
 
                 // Mouth and Lower Face AUs
                 if (RecordConfig.AU10_UpperLipRaiser)
-                {
-                    var au10 = Data.AU10_UpperLipRaiser;
-                    data["AU10_UpperLipRaiser"] = new { UpperLipRaiserL = au10.UpperLipRaiserL, UpperLipRaiserR = au10.UpperLipRaiserR };
-                }
+                    // [UpperLipRaiserL, UpperLipRaiserR]
+                    data["AU10_UpperLipRaiser"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.UpperLipRaiserL),
+                        _faceExpressions.GetWeight(FaceExpression.UpperLipRaiserR) };
 
                 if (RecordConfig.AU12_LipCornerPuller)
-                {
-                    var au12 = Data.AU12_LipCornerPuller;
-                    data["AU12_LipCornerPuller"] = new { LipCornerPullerL = au12.LipCornerPullerL, LipCornerPullerR = au12.LipCornerPullerR };
-                }
+                    // [LipCornerPullerL, LipCornerPullerR]
+                    data["AU12_LipCornerPuller"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LipCornerPullerL),
+                        _faceExpressions.GetWeight(FaceExpression.LipCornerPullerR) };
 
                 if (RecordConfig.AU14_Dimpler)
-                {
-                    var au14 = Data.AU14_Dimpler;
-                    data["AU14_Dimpler"] = new { DimplerL = au14.DimplerL, DimplerR = au14.DimplerR };
-                }
+                    // [DimplerL, DimplerR]
+                    data["AU14_Dimpler"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.DimplerL),
+                        _faceExpressions.GetWeight(FaceExpression.DimplerR) };
 
                 if (RecordConfig.AU15_LipCornerDepressor)
-                {
-                    var au15 = Data.AU15_LipCornerDepressor;
-                    data["AU15_LipCornerDepressor"] = new { LipCornerDepressorL = au15.LipCornerDepressorL, LipCornerDepressorR = au15.LipCornerDepressorR };
-                }
+                    // [LipCornerDepressorL, LipCornerDepressorR]
+                    data["AU15_LipCornerDepressor"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LipCornerDepressorL),
+                        _faceExpressions.GetWeight(FaceExpression.LipCornerDepressorR) };
 
                 if (RecordConfig.AU16_LowerLipDepressor)
-                {
-                    var au16 = Data.AU16_LowerLipDepressor;
-                    data["AU16_LowerLipDepressor"] = new { LowerLipDepressorL = au16.LowerLipDepressorL, LowerLipDepressorR = au16.LowerLipDepressorR };
-                }
+                    // [LowerLipDepressorL, LowerLipDepressorR]
+                    data["AU16_LowerLipDepressor"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LowerLipDepressorL),
+                        _faceExpressions.GetWeight(FaceExpression.LowerLipDepressorR) };
 
                 if (RecordConfig.AU17_ChinRaiser)
-                {
-                    var au17 = Data.AU17_ChinRaiser;
-                    data["AU17_ChinRaiser"] = new { ChinRaiserB = au17.ChinRaiserB, ChinRaiserT = au17.ChinRaiserT };
-                }
+                    // [ChinRaiserB, ChinRaiserT]
+                    data["AU17_ChinRaiser"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.ChinRaiserB),
+                        _faceExpressions.GetWeight(FaceExpression.ChinRaiserT) };
 
                 if (RecordConfig.AU18_LipPucker)
-                {
-                    var au18 = Data.AU18_LipPucker;
-                    data["AU18_LipPucker"] = new { LipPuckerL = au18.LipPuckerL, LipPuckerR = au18.LipPuckerR };
-                }
+                    // [LipPuckerL, LipPuckerR]
+                    data["AU18_LipPucker"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LipPuckerL),
+                        _faceExpressions.GetWeight(FaceExpression.LipPuckerR) };
 
                 if (RecordConfig.AU20_LipStretcher)
-                {
-                    var au20 = Data.AU20_LipStretcher;
-                    data["AU20_LipStretcher"] = new { LipStretcherL = au20.LipStretcherL, LipStretcherR = au20.LipStretcherR };
-                }
+                    // [LipStretcherL, LipStretcherR]
+                    data["AU20_LipStretcher"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LipStretcherL),
+                        _faceExpressions.GetWeight(FaceExpression.LipStretcherR) };
 
                 if (RecordConfig.AU22_LipFunneler)
-                {
-                    var au22 = Data.AU22_LipFunneler;
-                    data["AU22_LipFunneler"] = new { LipFunnelerLB = au22.LipFunnelerLB, LipFunnelerLT = au22.LipFunnelerLT, LipFunnelerRB = au22.LipFunnelerRB, LipFunnelerRT = au22.LipFunnelerRT };
-                }
+                    // [LipFunnelerLB, LipFunnelerLT, LipFunnelerRB, LipFunnelerRT]
+                    data["AU22_LipFunneler"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LipFunnelerLB),
+                        _faceExpressions.GetWeight(FaceExpression.LipFunnelerLT),
+                        _faceExpressions.GetWeight(FaceExpression.LipFunnelerRB),
+                        _faceExpressions.GetWeight(FaceExpression.LipFunnelerRT) };
 
                 if (RecordConfig.AU23_LipTightener)
-                {
-                    var au23 = Data.AU23_LipTightener;
-                    data["AU23_LipTightener"] = new { LipTightenerL = au23.LipTightenerL, LipTightenerR = au23.LipTightenerR };
-                }
+                    // [LipTightenerL, LipTightenerR]
+                    data["AU23_LipTightener"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LipTightenerL),
+                        _faceExpressions.GetWeight(FaceExpression.LipTightenerR) };
 
                 if (RecordConfig.AU24_LipPressor)
-                {
-                    var au24 = Data.AU24_LipPressor;
-                    data["AU24_LipPressor"] = new { LipPressorL = au24.LipPressorL, LipPressorR = au24.LipPressorR };
-                }
+                    // [LipPressorL, LipPressorR]
+                    data["AU24_LipPressor"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LipPressorL),
+                        _faceExpressions.GetWeight(FaceExpression.LipPressorR) };
 
                 if (RecordConfig.AU26_JawDrop)
-                {
-                    var au26 = Data.AU26_JawDrop;
-                    data["AU26_JawDrop"] = au26;
-                }
+                    data["AU26_JawDrop"] = _faceExpressions.GetWeight(FaceExpression.JawDrop);
 
                 if (RecordConfig.AU28_LipSuck)
-                {
-                    var au28 = Data.AU28_LipSuck;
-                    data["AU28_LipSuck"] = new { LipSuckLB = au28.LipSuckLB, LipSuckLT = au28.LipSuckLT, LipSuckRB = au28.LipSuckRB, LipSuckRT = au28.LipSuckRT };
-                }
+                    // [LipSuckLB, LipSuckLT, LipSuckRB, LipSuckRT]
+                    data["AU28_LipSuck"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.LipSuckLB),
+                        _faceExpressions.GetWeight(FaceExpression.LipSuckLT),
+                        _faceExpressions.GetWeight(FaceExpression.LipSuckRB),
+                        _faceExpressions.GetWeight(FaceExpression.LipSuckRT) };
 
                 // Eye Movement AUs
                 if (RecordConfig.AU43_EyesClosed)
-                {
-                    var au61 = Data.AU43_EyesClosed;
-                    data["AU43_EyesClosed"] = new { EyesClosedL = au61.EyesClosedL, EyesClosedR = au61.EyesClosedR };
-                }
+                    // [EyesClosedL, EyesClosedR]
+                    data["AU43_EyesClosed"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.EyesClosedL),
+                        _faceExpressions.GetWeight(FaceExpression.EyesClosedR) };
 
                 if (RecordConfig.AU61_EyesLookLeft)
-                {
-                    var au61 = Data.AU61_EyesLookLeft;
-                    data["AU61_EyesLookLeft"] = new { EyesLookLeftL = au61.EyesLookLeftL, EyesLookLeftR = au61.EyesLookLeftR };
-                }
+                    // [EyesLookLeftL, EyesLookLeftR]
+                    data["AU61_EyesLookLeft"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.EyesLookLeftL),
+                        _faceExpressions.GetWeight(FaceExpression.EyesLookLeftR) };
 
                 if (RecordConfig.AU62_EyesLookRight)
-                {
-                    var au62 = Data.AU62_EyesLookRight;
-                    data["AU62_EyesLookRight"] = new { EyesLookRightL = au62.EyesLookRightL, EyesLookRightR = au62.EyesLookRightR };
-                }
+                    // [EyesLookRightL, EyesLookRightR]
+                    data["AU62_EyesLookRight"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.EyesLookRightL),
+                        _faceExpressions.GetWeight(FaceExpression.EyesLookRightR) };
 
                 if (RecordConfig.AU63_EyesLookUp)
-                {
-                    var au63 = Data.AU63_EyesLookUp;
-                    data["AU63_EyesLookUp"] = new { EyesLookUpL = au63.EyesLookUpL, EyesLookUpR = au63.EyesLookUpR };
-                }
+                    // [EyesLookUpL, EyesLookUpR]
+                    data["AU63_EyesLookUp"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.EyesLookUpL),
+                        _faceExpressions.GetWeight(FaceExpression.EyesLookUpR) };
 
                 if (RecordConfig.AU64_EyesLookDown)
-                {
-                    var au64 = Data.AU64_EyesLookDown;
-                    data["AU64_EyesLookDown"] = new { EyesLookDownL = au64.EyesLookDownL, EyesLookDownR = au64.EyesLookDownR };
-                }
+                    // [EyesLookDownL, EyesLookDownR]
+                    data["AU64_EyesLookDown"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.EyesLookDownL),
+                        _faceExpressions.GetWeight(FaceExpression.EyesLookDownR) };
 
                 // Miscellaneous AUs
                 if (RecordConfig.AU8_LipsToward)
-                {
-                    var au8 = Data.AU8_LipsToward;
-                    data["AU8_LipsToward"] = au8;
-                }
+                    data["AU8_LipsToward"] = _faceExpressions.GetWeight(FaceExpression.LipsToward);
 
                 if (RecordConfig.AU29_JawThrust)
-                {
-                    var au29 = Data.AU29_JawThrust;
-                    data["AU29_JawThrust"] = au29;
-                }
+                    data["AU29_JawThrust"] = _faceExpressions.GetWeight(FaceExpression.JawThrust);
 
                 if (RecordConfig.AU30_JawSideways)
-                {
-                    var au30 = Data.AU30_JawSideways;
-                    data["AU30_JawSideways"] = new { JawSidewaysLeft = au30.JawSidewaysLeft, JawSidewaysRight = au30.JawSidewaysRight };
-                }
+                    // [JawSidewaysLeft, JawSidewaysRight]
+                    data["AU30_JawSideways"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.JawSidewaysLeft),
+                        _faceExpressions.GetWeight(FaceExpression.JawSidewaysRight) };
 
                 if (RecordConfig.AU34_CheekPuff)
-                {
-                    var au34 = Data.AU34_CheekPuff;
-                    data["AU34_CheekPuff"] = new { CheekPuffL = au34.CheekPuffL, CheekPuffR = au34.CheekPuffR };
-                }
+                    // [CheekPuffL, CheekPuffR]
+                    data["AU34_CheekPuff"] = new float[] {
+                        _faceExpressions.GetWeight(FaceExpression.CheekPuffL),
+                        _faceExpressions.GetWeight(FaceExpression.CheekPuffR) };
 
                 if (RecordConfig.AU36_TongueOut)
-                {
-                    var au36 = Data.AU36_TongueOut;
-                    data["AU36_TongueOut"] = au36;
-                }
+                    data["AU36_TongueOut"] = _faceExpressions.GetWeight(FaceExpression.TongueOut);
             }
 
             if (dataManager.Body._fullBodySkeleton.IsDataValid)
             {
                 // Head Movement AUs
-                if (RecordConfig.AU51_TurnLeft)
-                {
-                    var au51 = Data.AU51_TurnLeft;
-                    data["AU51_TurnLeft"] = au51;
-                }
-
-                if (RecordConfig.AU52_TurnRight)
-                {
-                    var au52 = Data.AU52_TurnRight;
-                    data["AU52_TurnRight"] = au52;
-                }
-
-                if (RecordConfig.AU53_HeadUp)
-                {
-                    var au53 = Data.AU53_HeadUp;
-                    data["AU53_HeadUp"] = au53;
-                }
-
-                if (RecordConfig.AU54_HeadDown)
-                {
-                    var au54 = Data.AU54_HeadDown;
-                    data["AU54_HeadDown"] = au54;
-                }
-
-                if (RecordConfig.AU55_TiltLeft)
-                {
-                    var au55 = Data.AU55_TiltLeft;
-                    data["AU55_TiltLeft"] = au55;
-                }
-
-                if (RecordConfig.AU56_TiltRight)
-                {
-                    var au56 = Data.AU56_TiltRight;
-                    data["AU56_TiltRight"] = au56;
-                }
+                if (RecordConfig.AU51_TurnLeft)  data["AU51_TurnLeft"]  = Data.AU51_TurnLeft;
+                if (RecordConfig.AU52_TurnRight) data["AU52_TurnRight"] = Data.AU52_TurnRight;
+                if (RecordConfig.AU53_HeadUp)    data["AU53_HeadUp"]    = Data.AU53_HeadUp;
+                if (RecordConfig.AU54_HeadDown)  data["AU54_HeadDown"]  = Data.AU54_HeadDown;
+                if (RecordConfig.AU55_TiltLeft)  data["AU55_TiltLeft"]  = Data.AU55_TiltLeft;
+                if (RecordConfig.AU56_TiltRight) data["AU56_TiltRight"] = Data.AU56_TiltRight;
             }
 
             return data;
@@ -253,7 +233,10 @@ namespace MetaFrame.Data
 
         /*=========================================================================================================================*/
         /// <summary>
-        /// FACS Data Structure - Clean property-based access for consistent static typing
+        /// FACS Data Structure — provides property access for external consumers (e.g. LSLService).
+        /// CollectData() bypasses these and calls GetWeight() directly for recording performance,
+        /// but these properties must remain for any code that reads DataStructure directly.
+        /// All properties return ValueTuples (structs) — no heap allocation on access.
         /// </summary>
 
         public class DataStructure
@@ -263,11 +246,11 @@ namespace MetaFrame.Data
 
             public DataStructure(DataSource_FACS source, OVRFaceExpressions faceExpressions)
             {
-                _source = source;
+                _source          = source;
                 _faceExpressions = faceExpressions;
             }
 
-            // Upper Face AUs - Direct property access, trust Meta APIs for null handling
+            // Upper Face AUs
             public (float? InnerBrowRaiserL, float? InnerBrowRaiserR) AU1_InnerBrowRaiser =>
                 (_faceExpressions?.GetWeight(FaceExpression.InnerBrowRaiserL), _faceExpressions?.GetWeight(FaceExpression.InnerBrowRaiserR));
 
@@ -330,14 +313,6 @@ namespace MetaFrame.Data
                 (_faceExpressions?.GetWeight(FaceExpression.LipSuckLB), _faceExpressions?.GetWeight(FaceExpression.LipSuckLT),
                  _faceExpressions?.GetWeight(FaceExpression.LipSuckRB), _faceExpressions?.GetWeight(FaceExpression.LipSuckRT));
 
-            // Head Movement AUs - Using body data if available
-            public float? AU51_TurnLeft => GetHeadMovementData("TurnLeft");
-            public float? AU52_TurnRight => GetHeadMovementData("TurnRight");
-            public float? AU53_HeadUp => GetHeadMovementData("HeadUp");
-            public float? AU54_HeadDown => GetHeadMovementData("HeadDown");
-            public float? AU55_TiltLeft => GetHeadMovementData("TiltLeft");
-            public float? AU56_TiltRight => GetHeadMovementData("TiltRight");
-
             // Eye Movement AUs
             public (float? EyesClosedL, float? EyesClosedR) AU43_EyesClosed =>
                 (_faceExpressions?.GetWeight(FaceExpression.EyesClosedL), _faceExpressions?.GetWeight(FaceExpression.EyesClosedR));
@@ -356,9 +331,8 @@ namespace MetaFrame.Data
 
             // Miscellaneous AUs
             public float? AU8_LipsToward => _faceExpressions?.GetWeight(FaceExpression.LipsToward);
-
             public float? AU29_JawThrust => _faceExpressions?.GetWeight(FaceExpression.JawThrust);
-            
+
             public (float? JawSidewaysLeft, float? JawSidewaysRight) AU30_JawSideways =>
                 (_faceExpressions?.GetWeight(FaceExpression.JawSidewaysLeft), _faceExpressions?.GetWeight(FaceExpression.JawSidewaysRight));
 
@@ -367,28 +341,34 @@ namespace MetaFrame.Data
 
             public float? AU36_TongueOut => _faceExpressions?.GetWeight(FaceExpression.TongueOut);
 
-            // Helper method to get head movement data
+            // Head Movement AUs
+            public float? AU51_TurnLeft  => GetHeadMovementData("TurnLeft");
+            public float? AU52_TurnRight => GetHeadMovementData("TurnRight");
+            public float? AU53_HeadUp    => GetHeadMovementData("HeadUp");
+            public float? AU54_HeadDown  => GetHeadMovementData("HeadDown");
+            public float? AU55_TiltLeft  => GetHeadMovementData("TiltLeft");
+            public float? AU56_TiltRight => GetHeadMovementData("TiltRight");
+
             private float? GetHeadMovementData(string movementType)
             {
-                if (_source?.dataManager?.Body?.Data?.Head == null || _source?.dataManager?.Body?.Data?.Chest == null) 
+                if (_source?.dataManager?.Body?.Data?.Head == null ||
+                    _source?.dataManager?.Body?.Data?.Chest == null)
                     return null;
 
-                var headTransform = _source.dataManager.Body.Data.Head;
+                var headTransform  = _source.dataManager.Body.Data.Head;
                 var chestTransform = _source.dataManager.Body.Data.Chest;
 
                 return movementType switch
                 {
-                    "TurnLeft" => _source.CalculateTurn(headTransform, chestTransform, -1f),
-                    "TurnRight" => _source.CalculateTurn(headTransform, chestTransform, 1f),
-                    "HeadUp" => _source.CalculatePitch(headTransform, chestTransform, -1f),
-                    "HeadDown" => _source.CalculatePitch(headTransform, chestTransform, 1f),
-                    "TiltLeft" => _source.CalculateTilt(headTransform, chestTransform, -1f),
-                    "TiltRight" => _source.CalculateTilt(headTransform, chestTransform, 1f),
-                    _ => null
+                    "TurnLeft"  => _source.CalculateTurn(headTransform,  chestTransform, -1f),
+                    "TurnRight" => _source.CalculateTurn(headTransform,  chestTransform,  1f),
+                    "HeadUp"    => _source.CalculatePitch(headTransform, chestTransform, -1f),
+                    "HeadDown"  => _source.CalculatePitch(headTransform, chestTransform,  1f),
+                    "TiltLeft"  => _source.CalculateTilt(headTransform,  chestTransform, -1f),
+                    "TiltRight" => _source.CalculateTilt(headTransform,  chestTransform,  1f),
+                    _           => null
                 };
             }
-
-
         }
 
         /*=========================================================================================================================*/
@@ -400,86 +380,77 @@ namespace MetaFrame.Data
         public class RecordingConfig
         {
             [Header("Upper Face AUs")]
-            [Tooltip("(InnerBrowRaiserL, InnerBrowRaiserR)")]
+            [Tooltip("[InnerBrowRaiserL, InnerBrowRaiserR]")]
             public bool AU1_InnerBrowRaiser = true;
-            [Tooltip("(OuterBrowRaiserL, OuterBrowRaiserR)")]
+            [Tooltip("[OuterBrowRaiserL, OuterBrowRaiserR]")]
             public bool AU2_OuterBrowRaiser = true;
-            [Tooltip("(BrowLowererL, BrowLowererR)")]
+            [Tooltip("[BrowLowererL, BrowLowererR]")]
             public bool AU4_BrowLowerer = true;
-            [Tooltip("(UpperLidRaiserL, UpperLidRaiserR)")]
+            [Tooltip("[UpperLidRaiserL, UpperLidRaiserR]")]
             public bool AU5_UpperLidRaiser = true;
-            [Tooltip("(CheekRaiserL, CheekRaiserR)")]
+            [Tooltip("[CheekRaiserL, CheekRaiserR]")]
             public bool AU6_CheekRaiser = true;
-            [Tooltip("(LidTightenerL, LidTightenerR)")]
+            [Tooltip("[LidTightenerL, LidTightenerR]")]
             public bool AU7_LidTightener = true;
 
             [Header("Lower Face AUs")]
-            [Tooltip("(NoseWrinklerL, NoseWrinklerR)")]
+            [Tooltip("[NoseWrinklerL, NoseWrinklerR]")]
             public bool AU9_NoseWrinkler = true;
-            [Tooltip("(UpperLipRaiserL, UpperLipRaiserR)")]
+            [Tooltip("[UpperLipRaiserL, UpperLipRaiserR]")]
             public bool AU10_UpperLipRaiser = true;
-            [Tooltip("(LipCornerPullerL, LipCornerPullerR)")]
+            [Tooltip("[LipCornerPullerL, LipCornerPullerR]")]
             public bool AU12_LipCornerPuller = true;
-            [Tooltip("(DimplerL, DimplerR)")]
+            [Tooltip("[DimplerL, DimplerR]")]
             public bool AU14_Dimpler = true;
-            [Tooltip("(LipCornerDepressorL, LipCornerDepressorR)")]
+            [Tooltip("[LipCornerDepressorL, LipCornerDepressorR]")]
             public bool AU15_LipCornerDepressor = true;
-            [Tooltip("(LowerLipDepressorL, LowerLipDepressorR)")]
+            [Tooltip("[LowerLipDepressorL, LowerLipDepressorR]")]
             public bool AU16_LowerLipDepressor = true;
-            [Tooltip("(ChinRaiserB, ChinRaiserT)")]
+            [Tooltip("[ChinRaiserB, ChinRaiserT]")]
             public bool AU17_ChinRaiser = true;
-            [Tooltip("(LipPuckerL, LipPuckerR)")]
+            [Tooltip("[LipPuckerL, LipPuckerR]")]
             public bool AU18_LipPucker = true;
-            [Tooltip("(LipStretcherL, LipStretcherR)")]
+            [Tooltip("[LipStretcherL, LipStretcherR]")]
             public bool AU20_LipStretcher = true;
-            [Tooltip("(LipFunnelerLB, LipFunnelerLT, LipFunnelerRB, LipFunnelerRT)")]
+            [Tooltip("[LipFunnelerLB, LipFunnelerLT, LipFunnelerRB, LipFunnelerRT]")]
             public bool AU22_LipFunneler = true;
-            [Tooltip("(LipTightenerL, LipTightenerR)")]
+            [Tooltip("[LipTightenerL, LipTightenerR]")]
             public bool AU23_LipTightener = true;
-            [Tooltip("(LipPressorL, LipPressorR)")]
+            [Tooltip("[LipPressorL, LipPressorR]")]
             public bool AU24_LipPressor = true;
             [Tooltip("JawDrop")]
             public bool AU26_JawDrop = true;
-            [Tooltip("(LipSuckLB, LipSuckLT, LipSuckRB, LipSuckRT)")]            
+            [Tooltip("[LipSuckLB, LipSuckLT, LipSuckRB, LipSuckRT]")]
             public bool AU28_LipSuck = true;
 
             [Header("Head Movement AUs")]
-            [Tooltip("float?")]
-            public bool AU51_TurnLeft = false;
-            [Tooltip("float?")]
+            public bool AU51_TurnLeft  = false;
             public bool AU52_TurnRight = false;
-            [Tooltip("float?")]
-            public bool AU53_HeadUp = false;
-            [Tooltip("float?")]
-            public bool AU54_HeadDown = false;
-            [Tooltip("float?")]
-            public bool AU55_TiltLeft = false;
-            [Tooltip("float?")]
+            public bool AU53_HeadUp    = false;
+            public bool AU54_HeadDown  = false;
+            public bool AU55_TiltLeft  = false;
             public bool AU56_TiltRight = false;
 
             [Header("Eye Movement AUs")]
-            [Tooltip("float?")]
-            public bool AU43_EyesClosed = true;
-            [Tooltip("float?")]
-            public bool AU61_EyesLookLeft = true;
-            [Tooltip("float?")]
+            [Tooltip("[EyesClosedL, EyesClosedR]")]
+            public bool AU43_EyesClosed   = true;
+            [Tooltip("[EyesLookLeftL, EyesLookLeftR]")]
+            public bool AU61_EyesLookLeft  = true;
+            [Tooltip("[EyesLookRightL, EyesLookRightR]")]
             public bool AU62_EyesLookRight = true;
-            [Tooltip("float?")]
-            public bool AU63_EyesLookUp = true;
-            [Tooltip("float?")]
-            public bool AU64_EyesLookDown = true;
+            [Tooltip("[EyesLookUpL, EyesLookUpR]")]
+            public bool AU63_EyesLookUp    = true;
+            [Tooltip("[EyesLookDownL, EyesLookDownR]")]
+            public bool AU64_EyesLookDown  = true;
 
             [Header("Miscellaneous AUs (Disabled by Default)")]
-            [Tooltip("LipsToward")]
-            public bool AU8_LipsToward = false;
-            [Tooltip("JawThrust")]
-            public bool AU29_JawThrust = false;
-            [Tooltip("(JawSidewaysLeft, JawSidewaysRight)")]
+            public bool AU8_LipsToward  = false;
+            public bool AU29_JawThrust  = false;
+            [Tooltip("[JawSidewaysLeft, JawSidewaysRight]")]
             public bool AU30_JawSideways = false;
-            [Tooltip("(CheekPuffL, CheekPuffR)")]
-            public bool AU34_CheekPuff = false;
-            [Tooltip("TongueOut")]
-            public bool AU36_TongueOut = false;
+            [Tooltip("[CheekPuffL, CheekPuffR]")]
+            public bool AU34_CheekPuff  = false;
+            public bool AU36_TongueOut  = false;
         }
     }
 }

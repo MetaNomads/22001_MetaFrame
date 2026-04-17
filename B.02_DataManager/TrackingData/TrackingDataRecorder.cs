@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using UnityEngine;
 using Sirenix.OdinInspector;
 using Newtonsoft.Json;
@@ -40,15 +42,9 @@ namespace MetaFrame.Data
 
         [BoxGroup("Recording Configuration")]
         [SerializeField]
-        [Range(1, 20)]
-        [Tooltip("Minimum records to batch before writing (higher = better performance, higher latency)")]
-        private int _minBatchSize = 10;
-
-        [BoxGroup("Recording Configuration")]
-        [SerializeField]
-        [Range(20, 40)]
-        [Tooltip("Maximum records before forcing write (prevents excessive memory usage)")]
-        private int _maxBatchSize = 20;
+        [Range(1, 40)]
+        [Tooltip("Number of records to accumulate before flushing to the writer thread")]
+        private int _batchSize = 10;
 
         // Runtime state
         public bool startRecord { get; private set; }
@@ -57,21 +53,32 @@ namespace MetaFrame.Data
         [HideInInspector] public string sessionPath;
         private float _recordingInterval;
 
-        // Optimized data structures
-        private Dictionary<string, StreamWriter> _jsonWriters = new Dictionary<string, StreamWriter>();
-        private Dictionary<string, List<Dictionary<string, object>>> _dataBatches = new Dictionary<string, List<Dictionary<string, object>>>();
-        private Dictionary<string, float> _lastBatchTimes = new Dictionary<string, float>();
+        // Per-frame batch buffers (main thread only)
+        private Dictionary<string, List<Dictionary<string, object>>> _dataBatches =
+            new Dictionary<string, List<Dictionary<string, object>>>();
 
-        // Pre-allocated structures for performance
+        // FIX: writer thread — all file I/O happens here, never on the main thread.
+        // On Android/Quest, storage writes can stall the calling thread by 2–30ms
+        // unpredictably due to the Android content provider layer. Moving writes off
+        // the main thread eliminates these stalls from the frame budget entirely.
+        private readonly ConcurrentQueue<(string fileName, string json)> _writeQueue =
+            new ConcurrentQueue<(string, string)>();
+        private Thread          _writerThread;
+        private volatile bool   _writerRunning;
+
+        // Writer-thread-only — never touched from main thread after StartRecording()
+        private Dictionary<string, StreamWriter> _jsonWriters = new Dictionary<string, StreamWriter>();
+
+        // Pre-allocated for performance
         private readonly StringBuilder _stringBuilder = new StringBuilder(4096);
         private JsonSerializerSettings _jsonSettings;
 
         // Performance monitoring
-        private int _totalFramesRecorded = 0;
-        private int _totalFramesSkipped = 0;
+        private int   _totalFramesRecorded = 0;
+        private int   _totalFramesSkipped  = 0;
         private float _nextRecordTime;
 
-        // ── Voice recording events ─────────────────────────────────────────────────
+        // ── Events ─────────────────────────────────────────────────────────────────
 
         public event Action OnRecordingStarted;
         public event Action OnRecordingPaused;
@@ -87,13 +94,12 @@ namespace MetaFrame.Data
         {
             _recordingInterval = _recordingIntervalMilliseconds / 1000f;
 
-            // Configure JSON settings once
             _jsonSettings = new JsonSerializerSettings
             {
-                Formatting = Formatting.None,
-                NullValueHandling = NullValueHandling.Ignore,
-                FloatFormatHandling = FloatFormatHandling.String,
-                FloatParseHandling = FloatParseHandling.Double
+                Formatting           = Formatting.None,
+                NullValueHandling    = NullValueHandling.Ignore,
+                FloatFormatHandling  = FloatFormatHandling.String,
+                FloatParseHandling   = FloatParseHandling.Double,
             };
 
             StartRecording();
@@ -131,17 +137,13 @@ namespace MetaFrame.Data
         void OnApplicationPause(bool pauseStatus)
         {
             if (pauseStatus && startRecord)
-            {
                 FlushAllBatches();
-            }
         }
 
         void OnApplicationFocus(bool hasFocus)
         {
             if (!hasFocus && startRecord)
-            {
                 FlushAllBatches();
-            }
         }
 
         /*=========================================================================================================================*/
@@ -158,11 +160,23 @@ namespace MetaFrame.Data
                 CreateSessionDirectory();
                 InitializeBatchStructures();
                 LogDataSourcesOnce();
-                startRecord = true;
-                _isPaused = false;
+
+                // FIX: start background writer thread before setting startRecord = true
+                // so the first queued writes are guaranteed to have a running consumer.
+                _writerRunning = true;
+                _writerThread  = new Thread(WriterLoop)
+                {
+                    IsBackground = true,
+                    Name         = "DataRecorder_Writer",
+                };
+                _writerThread.Start();
+
+                startRecord     = true;
+                _isPaused       = false;
                 _nextRecordTime = Time.unscaledTime + _recordingInterval;
 
-                Debug.Log($"[DataRecorder] Recording started at {_recordingInterval} milliseconds with {_minBatchSize}-{_maxBatchSize} record batching. Session: {sessionPath}");
+                Debug.Log($"[DataRecorder] Recording started. Interval: {_recordingIntervalMilliseconds}ms, " +
+                          $"BatchSize: {_batchSize}. Session: {sessionPath}");
                 OnRecordingStarted?.Invoke();
             }
             catch (Exception e)
@@ -178,10 +192,21 @@ namespace MetaFrame.Data
             try
             {
                 startRecord = false;
-                _isPaused = false;
+                _isPaused   = false;
+
+                // Flush any remaining in-memory batches to the write queue
                 FlushAllBatches();
+
+                // Signal writer thread to drain the queue then exit
+                _writerRunning = false;
+                _writerThread?.Join(5000); // wait up to 5s for all queued writes to land
+                _writerThread = null;
+
+                // Now safe to close writers — the thread is done
                 CloseAllWriters();
-                Debug.Log($"[DataRecorder] Recording stopped. Total frames: {_totalFramesRecorded}, Skipped: {_totalFramesSkipped}");
+
+                Debug.Log($"[DataRecorder] Recording stopped. " +
+                          $"Frames: {_totalFramesRecorded}, Skipped: {_totalFramesSkipped}");
                 OnRecordingStopped?.Invoke();
             }
             catch (Exception e)
@@ -224,11 +249,58 @@ namespace MetaFrame.Data
             return _isPaused ? "Paused" : "Recording";
         }
 
+        /*=========================================================================================================================*/
+        /// <summary>
+        /// Background Writer Thread
+        /// </summary>
+
+        private void WriterLoop()
+        {
+            // FIX: runs on a dedicated background thread so all file I/O is off the
+            // main thread. Drains _writeQueue until signalled to stop AND queue is empty.
+            while (_writerRunning || !_writeQueue.IsEmpty)
+            {
+                bool didWork = false;
+
+                while (_writeQueue.TryDequeue(out var item))
+                {
+                    try
+                    {
+                        var writer = GetOrCreateWriter(item.fileName);
+                        writer.WriteLine(item.json);
+                        didWork = true;
+                    }
+                    catch (Exception e)
+                    {
+                        // Can't call Debug.Log from background thread on older Unity — log to console stderr instead
+                        Console.Error.WriteLine($"[DataRecorder] Writer thread error for '{item.fileName}': {e.Message}");
+                    }
+                }
+
+                // Flush after draining a burst to minimise open-file time
+                if (didWork)
+                {
+                    foreach (var w in _jsonWriters.Values)
+                    {
+                        try { w.Flush(); }
+                        catch { /* best-effort */ }
+                    }
+                }
+
+                if (!didWork)
+                    Thread.Sleep(1); // avoid busy-spin when queue is empty
+            }
+        }
+
+        /*=========================================================================================================================*/
+        /// <summary>
+        /// Session Setup
+        /// </summary>
+
         private void CreateSessionDirectory()
         {
             startTime = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
 
-            // Resolve sequencer — use the serialized reference if set, otherwise search the scene
             if (_experimentSequencer == null)
 #if UNITY_2023_1_OR_NEWER
                 _experimentSequencer = UnityEngine.Object.FindFirstObjectByType<MetaFrame.State.ExperimentSequencer>();
@@ -250,27 +322,21 @@ namespace MetaFrame.Data
 
             sessionPath = Path.Combine(_savePath, folderName);
             Directory.CreateDirectory(sessionPath);
-
             Debug.Log($"[DataRecorder] Session directory created: {sessionPath}");
         }
 
         private void InitializeBatchStructures()
         {
             _dataBatches.Clear();
-            _lastBatchTimes.Clear();
             _totalFramesRecorded = 0;
-            _totalFramesSkipped = 0;
+            _totalFramesSkipped  = 0;
         }
 
         private void CloseAllWriters()
         {
             foreach (var writer in _jsonWriters.Values)
             {
-                try
-                {
-                    writer?.Close();
-                    writer?.Dispose();
-                }
+                try { writer?.Flush(); writer?.Close(); writer?.Dispose(); }
                 catch (Exception e)
                 {
                     Debug.LogWarning($"[DataRecorder] Error closing writer: {e.Message}");
@@ -278,126 +344,12 @@ namespace MetaFrame.Data
             }
             _jsonWriters.Clear();
             _dataBatches.Clear();
-            _lastBatchTimes.Clear();
-
             Debug.Log($"[DataRecorder] All writers closed. Total frames: {_totalFramesRecorded}");
         }
 
         /*=========================================================================================================================*/
         /// <summary>
-        /// Data Collection with Integrated Precision Control
-        /// </summary>
-
-        private Dictionary<string, Dictionary<string, object>> CollectAllData()
-        {
-            var results = new Dictionary<string, Dictionary<string, object>>();
-            long epochMs = GetEpochMilliseconds();
-
-            foreach (var dataSource in _dataManager._dataSources)
-            {
-                try
-                {
-                    var sourceData = dataSource.CollectData();
-                    if (sourceData.Count > 0)
-                    {
-                        // Create new dictionary with timestamp first
-                        var orderedData = new Dictionary<string, object>();
-                        orderedData["timestamp"] = epochMs;
-
-                        // Apply precision and add remaining data
-                        ApplyPrecisionToData(sourceData);
-                        foreach (var kvp in sourceData)
-                        {
-                            orderedData[kvp.Key] = kvp.Value;
-                        }
-
-                        results[dataSource.SourceName.ToLower()] = orderedData;
-                    }
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[DataRecorder] Failed to collect {dataSource.SourceName} data: {e.Message}");
-                    // Continue with other data sources
-                }
-            }
-
-            return results;
-        }
-
-        private void ApplyPrecisionToData(Dictionary<string, object> data)
-        {
-            var keys = new List<string>(data.Keys);
-            foreach (var key in keys)
-            {
-                data[key] = ApplyPrecisionToValue(data[key]);
-            }
-        }
-
-        private object ApplyPrecisionToValue(object value)
-        {
-            if (value == null) return null;
-
-            switch (value)
-            {
-                case float f:
-                    return (float)Math.Round(f, _decimalPrecision, MidpointRounding.AwayFromZero);
-
-                case double d:
-                    return Math.Round(d, _decimalPrecision, MidpointRounding.AwayFromZero);
-
-                case float[] floatArray:
-                    for (int i = 0; i < floatArray.Length; i++)
-                    {
-                        floatArray[i] = (float)Math.Round(floatArray[i], _decimalPrecision, MidpointRounding.AwayFromZero);
-                    }
-                    return floatArray;
-
-                case double[] doubleArray:
-                    for (int i = 0; i < doubleArray.Length; i++)
-                    {
-                        doubleArray[i] = Math.Round(doubleArray[i], _decimalPrecision, MidpointRounding.AwayFromZero);
-                    }
-                    return doubleArray;
-
-                case Dictionary<string, object> dict:
-                    ApplyPrecisionToData(dict);
-                    return dict;
-
-                default:
-                    // Handle anonymous objects and other complex types via reflection
-                    if (value.GetType().IsClass && !value.GetType().IsPrimitive && value.GetType() != typeof(string))
-                    {
-                        return ApplyPrecisionToObject(value);
-                    }
-                    return value;
-            }
-        }
-
-        private object ApplyPrecisionToObject(object obj)
-        {
-            var type = obj.GetType();
-            var properties = type.GetProperties();
-
-            // Create new anonymous object with rounded values
-            var dict = new Dictionary<string, object>();
-            foreach (var prop in properties)
-            {
-                try
-                {
-                    var propValue = prop.GetValue(obj);
-                    dict[prop.Name] = ApplyPrecisionToValue(propValue);
-                }
-                catch
-                {
-                    // Skip properties that can't be read
-                }
-            }
-            return dict;
-        }
-
-        /*=========================================================================================================================*/
-        /// <summary>
-        /// Optimized Recording with Batching
+        /// Data Collection
         /// </summary>
 
         private void RecordData()
@@ -406,100 +358,139 @@ namespace MetaFrame.Data
 
             var allData = CollectAllData();
 
-            // Batch each data source separately
             foreach (var sourceData in allData)
+                AddToBatch(sourceData.Key, sourceData.Value);
+        }
+
+        private Dictionary<string, Dictionary<string, object>> CollectAllData()
+        {
+            var results  = new Dictionary<string, Dictionary<string, object>>();
+            long epochMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            foreach (var dataSource in _dataManager._dataSources)
             {
-                string sourceName = sourceData.Key;
-                var data = sourceData.Value;
-                AddToBatch(sourceName, data);
+                try
+                {
+                    var sourceData = dataSource.CollectData();
+                    if (sourceData.Count == 0) continue;
+
+                    var orderedData = new Dictionary<string, object>();
+                    orderedData["timestamp"] = epochMs;
+
+                    ApplyPrecisionToData(sourceData, _decimalPrecision);
+                    foreach (var kvp in sourceData)
+                        orderedData[kvp.Key] = kvp.Value;
+
+                    // FIX: use pre-cached SourceNameLower instead of calling ToLower()
+                    // (which allocates a new string) on every recording tick.
+                    results[dataSource.SourceNameLower] = orderedData;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[DataRecorder] Failed to collect {dataSource.SourceName} data: {e.Message}");
+                }
+            }
+
+            return results;
+        }
+
+        private void ApplyPrecisionToData(Dictionary<string, object> data, int precision)
+        {
+            var keys = new List<string>(data.Keys);
+            foreach (var key in keys)
+                data[key] = ApplyPrecisionToValue(data[key], precision);
+        }
+
+        private object ApplyPrecisionToValue(object value, int precision)
+        {
+            if (value == null) return null;
+
+            switch (value)
+            {
+                case float f:
+                    return (float)Math.Round(f, precision, MidpointRounding.AwayFromZero);
+
+                case double d:
+                    return Math.Round(d, precision, MidpointRounding.AwayFromZero);
+
+                case float[] floatArray:
+                    for (int i = 0; i < floatArray.Length; i++)
+                        floatArray[i] = (float)Math.Round(floatArray[i], precision, MidpointRounding.AwayFromZero);
+                    return floatArray;
+
+                case double[] doubleArray:
+                    for (int i = 0; i < doubleArray.Length; i++)
+                        doubleArray[i] = Math.Round(doubleArray[i], precision, MidpointRounding.AwayFromZero);
+                    return doubleArray;
+
+                case Dictionary<string, object> dict:
+                    ApplyPrecisionToData(dict, precision);
+                    return dict;
+
+                default:
+                    return value;
             }
         }
+
+        /*=========================================================================================================================*/
+        /// <summary>
+        /// Batching — main thread accumulates, writer thread consumes
+        /// </summary>
 
         private void AddToBatch(string sourceName, Dictionary<string, object> data)
         {
-            // Initialize batch if needed
             if (!_dataBatches.ContainsKey(sourceName))
-            {
                 _dataBatches[sourceName] = new List<Dictionary<string, object>>();
-                _lastBatchTimes[sourceName] = Time.unscaledTime;
-            }
 
             _dataBatches[sourceName].Add(data);
 
-            // Check if batch should be flushed
-            bool shouldFlush = ShouldFlushBatch(sourceName);
-            if (shouldFlush)
-            {
+            // FIX: simplified flush condition — previously had both _minBatchSize and
+            // _maxBatchSize connected with || which meant _maxBatchSize never triggered
+            // independently (any count >= min is always also the flush point). Replaced
+            // with a single _batchSize threshold.
+            if (_dataBatches[sourceName].Count >= _batchSize)
                 FlushBatch(sourceName);
-            }
-        }
-
-        private bool ShouldFlushBatch(string sourceName)
-        {
-            var batch = _dataBatches[sourceName];
-
-            // Flush if EITHER condition is met:
-            return batch.Count >= _minBatchSize ||     // Normal batching threshold
-                   batch.Count >= _maxBatchSize;       // Hard limit (safety)
         }
 
         private void FlushBatch(string sourceName)
         {
-            if (!_dataBatches.ContainsKey(sourceName) || _dataBatches[sourceName].Count == 0)
+            if (!_dataBatches.TryGetValue(sourceName, out var batch) || batch.Count == 0)
                 return;
 
-            try
-            {
-                string fileName = $"{sourceName}.json";
-                var writer = GetOrCreateWriter(fileName);
-                var batch = _dataBatches[sourceName];
+            string fileName = $"{sourceName}.json";
 
-                // Write each record as a separate line (NDJSON format)
-                foreach (var record in batch)
-                {
-                    string jsonString = JsonConvert.SerializeObject(record, _jsonSettings);
-                    writer.WriteLine(jsonString);
-                }
-                writer.Flush();
-
-                // Clear batch and update time
-                batch.Clear();
-                _lastBatchTimes[sourceName] = Time.unscaledTime;
-            }
-            catch (Exception e)
+            // Serialize on main thread (fast), enqueue for file I/O on writer thread
+            foreach (var record in batch)
             {
-                Debug.LogError($"[DataRecorder] Failed to flush batch for {sourceName}: {e.Message}");
+                string json = JsonConvert.SerializeObject(record, _jsonSettings);
+                _writeQueue.Enqueue((fileName, json));
             }
+
+            batch.Clear();
         }
 
         private void FlushAllBatches()
         {
             foreach (var sourceName in new List<string>(_dataBatches.Keys))
-            {
                 FlushBatch(sourceName);
-            }
         }
 
+        // Called only from the writer thread
         private StreamWriter GetOrCreateWriter(string fileName)
         {
             if (!_jsonWriters.TryGetValue(fileName, out StreamWriter writer))
             {
-                string filePath = Path.Combine(sessionPath, fileName);
-                var fileStream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
-                writer = new StreamWriter(fileStream, Encoding.UTF8);
+                string filePath  = Path.Combine(sessionPath, fileName);
+                var fileStream   = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                writer           = new StreamWriter(fileStream, Encoding.UTF8);
                 _jsonWriters[fileName] = writer;
             }
             return writer;
         }
 
-        private long GetEpochMilliseconds()
-        {
-            return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        }
-
         private void LogDataSourcesOnce()
         {
-            if (_dataManager == null || _dataManager._dataSources == null) return;
+            if (_dataManager?._dataSources == null) return;
             foreach (var dataSource in _dataManager._dataSources)
             {
                 try
@@ -533,12 +524,12 @@ namespace MetaFrame.Data
 
         [BoxGroup("Runtime Info")]
         [ShowInInspector, ReadOnly]
-        private float RecordingDuration => startRecord && !string.IsNullOrEmpty(startTime) ? Time.unscaledTime - _nextRecordTime + _recordingInterval : 0f;
+        private int WriteQueueDepth => _writeQueue.Count;
 
         [BoxGroup("Runtime Info")]
         [ShowInInspector, ReadOnly]
-        private string BatchStatus => startRecord ?
-            $"Batches: {string.Join(", ", _dataBatches.Keys.Select(k => $"{k}({_dataBatches[k].Count})"))}" :
-            "Not recording";
+        private string BatchStatus => startRecord
+            ? $"Batches: {string.Join(", ", _dataBatches.Keys.Select(k => $"{k}({_dataBatches[k].Count})/{ _batchSize}"))}"
+            : "Not recording";
     }
 }

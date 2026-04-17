@@ -7,7 +7,6 @@ using Oculus.Interaction.Input;
 using Oculus.Interaction.PoseDetection;
 using MetaFrame.Interaction;
 
-
 namespace MetaFrame.Data
 {
     public class DataSource_Hand : DataSourceBase<DataSource_Hand.DataStructure, DataSource_Hand.RecordingConfig>
@@ -21,11 +20,11 @@ namespace MetaFrame.Data
         [SerializeField] private FingerFeatureStateProvider _rightFingerFeatureStateProvider;
 
         public override string SourceName => "Hand";
-        
+
         protected override DataStructure CreateData()
         {
             return new DataStructure(this,
-                _leftTransformFeatureStateProvider, _leftFingerFeatureStateProvider,
+                _leftTransformFeatureStateProvider,  _leftFingerFeatureStateProvider,
                 _rightTransformFeatureStateProvider, _rightFingerFeatureStateProvider);
         }
 
@@ -36,46 +35,41 @@ namespace MetaFrame.Data
             if (_leftHand?.IsConnected == true)
             {
                 if (RecordConfig.LeftPalm)
-                {
                     data["leftPalm"] = GetTransformData(Data.LeftPalm);
-                }
 
                 if (RecordConfig.LeftPalmTowardsFace)
-                {
                     data["leftPalmTowardsFace"] = Data.LeftPalmTowardsFace;
-                }
 
-                // Left Hand - Finger Data
                 if (RecordConfig.LeftFingers)
                 {
-                    data["leftThumb"] = GetObjectData(Data.LeftThumb);
-                    data["leftIndex"] = GetObjectData(Data.LeftIndex);
-                    data["leftMiddle"] = GetObjectData(Data.LeftMiddle);
-                    data["leftRing"] = GetObjectData(Data.LeftRing);
-                    data["leftPinky"] = GetObjectData(Data.LeftPinky);
+                    // FIX: was GetObjectData(Data.LeftThumb) etc. — GetObjectData used
+                    // reflection (GetType().GetProperties()) on every call. With 10 finger
+                    // entries at 100Hz that's 1000 reflection-based property lookups per
+                    // second on the main thread. Replaced with ToArray() which reads the
+                    // four known fields directly and builds a float[] with no reflection.
+                    data["leftThumb"]  = Data.LeftThumb?.ToArray();
+                    data["leftIndex"]  = Data.LeftIndex?.ToArray();
+                    data["leftMiddle"] = Data.LeftMiddle?.ToArray();
+                    data["leftRing"]   = Data.LeftRing?.ToArray();
+                    data["leftPinky"]  = Data.LeftPinky?.ToArray();
                 }
             }
 
             if (_rightHand?.IsConnected == true)
             {
                 if (RecordConfig.RightPalm)
-                {
                     data["rightPalm"] = GetTransformData(Data.RightPalm);
-                }
 
                 if (RecordConfig.RightPalmTowardsFace)
-                {
                     data["rightPalmTowardsFace"] = Data.RightPalmTowardsFace;
-                }
 
-                // Right Hand - Finger Data
                 if (RecordConfig.RightFingers)
                 {
-                    data["rightThumb"] = GetObjectData(Data.RightThumb);
-                    data["rightIndex"] = GetObjectData(Data.RightIndex);
-                    data["rightMiddle"] = GetObjectData(Data.RightMiddle);
-                    data["rightRing"] = GetObjectData(Data.RightRing);
-                    data["rightPinky"] = GetObjectData(Data.RightPinky);
+                    data["rightThumb"]  = Data.RightThumb?.ToArray();
+                    data["rightIndex"]  = Data.RightIndex?.ToArray();
+                    data["rightMiddle"] = Data.RightMiddle?.ToArray();
+                    data["rightRing"]   = Data.RightRing?.ToArray();
+                    data["rightPinky"]  = Data.RightPinky?.ToArray();
                 }
             }
 
@@ -84,7 +78,7 @@ namespace MetaFrame.Data
 
         /*=========================================================================================================================*/
         /// <summary>
-        /// Hand Data Structure - Clean property-based access for consistent static typing
+        /// Hand Data Structure
         /// </summary>
 
         public class DataStructure
@@ -96,95 +90,101 @@ namespace MetaFrame.Data
             private readonly FingerFeatureStateProvider _rightFingerProvider;
 
             public DataStructure(DataSource_Hand source,
-                TransformFeatureStateProvider leftTransformProvider, FingerFeatureStateProvider leftFingerProvider,
+                TransformFeatureStateProvider leftTransformProvider,  FingerFeatureStateProvider leftFingerProvider,
                 TransformFeatureStateProvider rightTransformProvider, FingerFeatureStateProvider rightFingerProvider)
             {
-                _source = source;
-                _leftTransformProvider = leftTransformProvider;
-                _leftFingerProvider = leftFingerProvider;
+                _source                = source;
+                _leftTransformProvider  = leftTransformProvider;
+                _leftFingerProvider     = leftFingerProvider;
                 _rightTransformProvider = rightTransformProvider;
-                _rightFingerProvider = rightFingerProvider;
+                _rightFingerProvider    = rightFingerProvider;
             }
 
-            // Left Hand Data
-            public Transform LeftPalm => GetPalm(true);
-            public float? LeftPalmTowardsFace => GetPalmTowardsFaceValue(true);
-            public FingerData LeftThumb => GetFingerData(_leftFingerProvider, HandFinger.Thumb);
-            public FingerData LeftIndex => GetFingerData(_leftFingerProvider, HandFinger.Index);
+            // Left Hand
+            public Transform LeftPalm             => GetPalm(true);
+            public float?    LeftPalmTowardsFace  => GetPalmTowardsFaceValue(true);
+            public FingerData LeftThumb  => GetFingerData(_leftFingerProvider, HandFinger.Thumb);
+            public FingerData LeftIndex  => GetFingerData(_leftFingerProvider, HandFinger.Index);
             public FingerData LeftMiddle => GetFingerData(_leftFingerProvider, HandFinger.Middle);
-            public FingerData LeftRing => GetFingerData(_leftFingerProvider, HandFinger.Ring);
-            public FingerData LeftPinky => GetFingerData(_leftFingerProvider, HandFinger.Pinky);
+            public FingerData LeftRing   => GetFingerData(_leftFingerProvider, HandFinger.Ring);
+            public FingerData LeftPinky  => GetFingerData(_leftFingerProvider, HandFinger.Pinky);
 
-            // Right Hand Data
-            public Transform RightPalm => GetPalm(false);
-            public float? RightPalmTowardsFace => GetPalmTowardsFaceValue(false);
-            public FingerData RightThumb => GetFingerData(_rightFingerProvider, HandFinger.Thumb);
-            public FingerData RightIndex => GetFingerData(_rightFingerProvider, HandFinger.Index);
+            // Right Hand
+            public Transform RightPalm            => GetPalm(false);
+            public float?    RightPalmTowardsFace => GetPalmTowardsFaceValue(false);
+            public FingerData RightThumb  => GetFingerData(_rightFingerProvider, HandFinger.Thumb);
+            public FingerData RightIndex  => GetFingerData(_rightFingerProvider, HandFinger.Index);
             public FingerData RightMiddle => GetFingerData(_rightFingerProvider, HandFinger.Middle);
-            public FingerData RightRing => GetFingerData(_rightFingerProvider, HandFinger.Ring);
-            public FingerData RightPinky => GetFingerData(_rightFingerProvider, HandFinger.Pinky);
+            public FingerData RightRing   => GetFingerData(_rightFingerProvider, HandFinger.Ring);
+            public FingerData RightPinky  => GetFingerData(_rightFingerProvider, HandFinger.Pinky);
 
-            // Helper method to get palm transform with null safety
-            private Transform GetPalm(bool isLeftHand)
+            private Transform GetPalm(bool isLeft)
             {
                 try
                 {
-                    if (isLeftHand)
-                        return _source.dataManager.Body.Data.LeftHandPalm;
-                    else
-                        return _source.dataManager.Body.Data.RightHandPalm;
+                    return isLeft
+                        ? _source.dataManager.Body.Data.LeftHandPalm
+                        : _source.dataManager.Body.Data.RightHandPalm;
                 }
                 catch { return null; }
             }
-            // Helper method to get palm towards face value with null safety
-            private float? GetPalmTowardsFaceValue(bool isLeftHand)
+
+            private float? GetPalmTowardsFaceValue(bool isLeft)
             {
                 try
                 {
-                    if (isLeftHand)
-                        return _leftTransformProvider.GetFeatureValue(_source.dataManager.config, TransformFeature.PalmTowardsFace);
-                    else
-                        return _rightTransformProvider.GetFeatureValue(_source.dataManager.config, TransformFeature.PalmTowardsFace);
+                    var provider = isLeft ? _leftTransformProvider : _rightTransformProvider;
+                    return provider.GetFeatureValue(_source.dataManager.config, TransformFeature.PalmTowardsFace);
                 }
                 catch { return null; }
             }
-            // Helper method to get finger data with null safety
-            private FingerData GetFingerData(FingerFeatureStateProvider fingerProvider, HandFinger finger)
+
+            private FingerData GetFingerData(FingerFeatureStateProvider provider, HandFinger finger)
             {
                 try
                 {
-                    var curl = fingerProvider.GetFeatureValue(finger, FingerFeature.Curl);
-                    var flexion = fingerProvider.GetFeatureValue(finger, FingerFeature.Flexion);
-                    var abduction = fingerProvider.GetFeatureValue(finger, FingerFeature.Abduction);
-                    var opposition = fingerProvider.GetFeatureValue(finger, FingerFeature.Opposition);
+                    var curl       = provider.GetFeatureValue(finger, FingerFeature.Curl);
+                    var flexion    = provider.GetFeatureValue(finger, FingerFeature.Flexion);
+                    var abduction  = provider.GetFeatureValue(finger, FingerFeature.Abduction);
+                    var opposition = provider.GetFeatureValue(finger, FingerFeature.Opposition);
 
-                    var data = new FingerData(curl, flexion, abduction, opposition);
-                    return data.IsAllNull ? null : data;
+                    var d = new FingerData(curl, flexion, abduction, opposition);
+                    return d.IsAllNull ? null : d;
                 }
                 catch { return null; }
             }
 
             public class FingerData
             {
-                public float? Curl { get; }
-                public float? Flexion { get; }
-                public float? Abduction { get; }
+                public float? Curl       { get; }
+                public float? Flexion    { get; }
+                public float? Abduction  { get; }
                 public float? Opposition { get; }
 
                 public FingerData(float? curl, float? flexion, float? abduction, float? opposition)
                 {
-                    Curl = curl;
-                    Flexion = flexion;
-                    Abduction = abduction;
+                    Curl       = curl;
+                    Flexion    = flexion;
+                    Abduction  = abduction;
                     Opposition = opposition;
                 }
 
                 public bool IsAllNull =>
                     Curl == null && Flexion == null && Abduction == null && Opposition == null;
+
+                /// <summary>
+                /// Returns finger values as a float array — no reflection, no heap overhead
+                /// beyond the array itself. Layout: [Curl, Flexion, Abduction, Opposition]
+                /// </summary>
+                public float[] ToArray() => new float[]
+                {
+                    Curl       ?? 0f,
+                    Flexion    ?? 0f,
+                    Abduction  ?? 0f,
+                    Opposition ?? 0f,
+                };
             }
         }
-
-
 
         /*=========================================================================================================================*/
         /// <summary>
@@ -199,7 +199,7 @@ namespace MetaFrame.Data
             public bool LeftPalm = true;
             [Tooltip("float?")]
             public bool LeftPalmTowardsFace = true;
-            [Tooltip("(curl, flexion, abduction, opposition)?")]
+            [Tooltip("[Curl, Flexion, Abduction, Opposition]")]
             public bool LeftFingers = true;
 
             [Header("Right Hand")]
@@ -207,7 +207,7 @@ namespace MetaFrame.Data
             public bool RightPalm = true;
             [Tooltip("float?")]
             public bool RightPalmTowardsFace = true;
-            [Tooltip("(curl, flexion, abduction, opposition)?")]
+            [Tooltip("[Curl, Flexion, Abduction, Opposition]")]
             public bool RightFingers = true;
         }
     }

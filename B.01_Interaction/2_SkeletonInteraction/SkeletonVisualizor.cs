@@ -197,11 +197,21 @@ namespace MetaFrame.Interaction.SkeletonInteraction
 
         private void HandleBeginCameraRendering(ScriptableRenderContext context, Camera cam)
         {
-            if (!_segmentsDirty)              return;
-            if (!ShouldDrawForCamera(cam))    return;
+            if (!_segmentsDirty)           return;
+            if (!ShouldDrawForCamera(cam)) return;
 
-            // RenderLines(cam) sends the draw call exclusively to this camera.
             _polylineRenderer.RenderLines(cam);
+
+            // FIX: clear the dirty flag after the first successful render call.
+            // Previously it was never cleared here, so RenderLines fired for every
+            // camera pass in the scene (both XR eyes, reflection probes, shadow
+            // cameras, scene view) rather than just the first matching one per
+            // body-tracking update. Each call submits a DrawMeshInstancedIndirect
+            // to the GPU, multiplying draw call cost proportionally to how many
+            // camera passes exist. _segmentsDirty is re-set to true by
+            // BuildSegments() on the next body tracking update, so rendering
+            // resumes correctly on the following frame.
+            _segmentsDirty = false;
         }
 
         private bool ShouldDrawForCamera(Camera cam)

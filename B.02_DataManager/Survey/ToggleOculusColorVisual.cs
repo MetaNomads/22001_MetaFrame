@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using Oculus.Interaction;
@@ -73,6 +73,14 @@ public class ToggleOculusColorVisual : MonoBehaviour
 
     void OnEnable()
     {
+        // FIX: RemoveListener before AddListener so that repeated Enable/Disable
+        // cycles (e.g. survey panel shown/hidden each session) never accumulate
+        // duplicate listeners. Unity's AddListener does not deduplicate runtime
+        // delegates — each extra copy fires OnToggleChanged an additional time,
+        // spawning redundant coroutines and toggling oculusColorVisual.enabled
+        // multiple times per interaction, causing a permanent per-session
+        // framerate cost that compounds across sessions.
+        toggle.onValueChanged.RemoveListener(OnToggleChanged);
         toggle.onValueChanged.AddListener(OnToggleChanged);
         OnToggleChanged(toggle.isOn);
     }

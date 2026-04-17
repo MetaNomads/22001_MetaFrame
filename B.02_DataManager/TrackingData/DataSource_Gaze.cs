@@ -22,22 +22,17 @@ namespace MetaFrame.Data
         {
             var data = new Dictionary<string, object>();
 
-            if (RecordConfig.LeftEye) data["leftEye"] = GetGazeDataDictionary(Data.LeftEye);
-            if (RecordConfig.RightEye) data["rightEye"] = GetGazeDataDictionary(Data.RightEye);
-            if (RecordConfig.CenterGaze) data["centerGaze"] = GetGazeDataDictionary(Data.CenterGaze);
-            if (RecordConfig.HeadGaze) data["headGaze"] = GetGazeDataDictionary(Data.HeadGaze);
-            if (RecordConfig.ChestGaze) data["chestGaze"] = GetGazeDataDictionary(Data.ChestGaze);
+            if (RecordConfig.LeftEye)    { var d = Data.LeftEye;    if (d != null) data["leftEye"]    = GetGazeDataDictionary(d); }
+            if (RecordConfig.RightEye)   { var d = Data.RightEye;   if (d != null) data["rightEye"]   = GetGazeDataDictionary(d); }
+            if (RecordConfig.CenterGaze) { var d = Data.CenterGaze; if (d != null) data["centerGaze"] = GetGazeDataDictionary(d); }
+            if (RecordConfig.HeadGaze)   { var d = Data.HeadGaze;   if (d != null) data["headGaze"]   = GetGazeDataDictionary(d); }
+            if (RecordConfig.ChestGaze)  { var d = Data.ChestGaze;  if (d != null) data["chestGaze"]  = GetGazeDataDictionary(d); }
 
             return data;
         }
 
-        /// <summary>
-        /// Convert GazeData to dictionary with proper Unity type conversion
-        /// </summary>
         private Dictionary<string, object> GetGazeDataDictionary(DataStructure.GazeData gazeData)
         {
-            if (gazeData == null) return null;
-
             var dict = new Dictionary<string, object>();
 
             if (gazeData.Position.HasValue)
@@ -69,7 +64,7 @@ namespace MetaFrame.Data
 
         /*=========================================================================================================================*/
         /// <summary>
-        /// Gaze Data Structure - Clean property-based access for consistent static typing
+        /// Gaze Data Structure
         /// </summary>
 
         public class DataStructure
@@ -77,85 +72,95 @@ namespace MetaFrame.Data
             private readonly DataSource_Gaze _source;
             private readonly GazePose _gazePose;
 
+            // FIX: pre-allocated GazeData instances — previously every property access
+            // called GetSingleEyeData / GetGazePoseData which did `new GazeData(...)`,
+            // creating 5 heap-allocated objects per recording tick (100Hz = 500/sec).
+            // Now each property updates and returns its cached instance in-place.
+            // This is safe because GazeData is consumed immediately in CollectData
+            // and never held across frames.
+            private readonly GazeData _leftEyeCache   = new GazeData();
+            private readonly GazeData _rightEyeCache  = new GazeData();
+            private readonly GazeData _centerGazeCache = new GazeData();
+            private readonly GazeData _headGazeCache   = new GazeData();
+            private readonly GazeData _chestGazeCache  = new GazeData();
+
             public DataStructure(DataSource_Gaze source, GazePose gazePose)
             {
-                _source = source;
+                _source   = source;
                 _gazePose = gazePose;
             }
 
-            // Eye Gaze Data Properties
-            public GazeData LeftEye => GetSingleEyeData(_gazePose?.LeftEye);
-            public GazeData RightEye => GetSingleEyeData(_gazePose?.RightEye);
-            public GazeData CenterGaze => GetGazePoseData(_gazePose?.CenterGaze);
-            public GazeData HeadGaze => GetGazePoseData(_gazePose?.HeadGaze);
-            public GazeData ChestGaze => GetGazePoseData(_gazePose?.ChestGaze);
+            public GazeData LeftEye    => UpdateSingleEyeData(_leftEyeCache,   _gazePose?.LeftEye);
+            public GazeData RightEye   => UpdateSingleEyeData(_rightEyeCache,  _gazePose?.RightEye);
+            public GazeData CenterGaze => UpdateGazePoseData(_centerGazeCache, _gazePose?.CenterGaze);
+            public GazeData HeadGaze   => UpdateGazePoseData(_headGazeCache,   _gazePose?.HeadGaze);
+            public GazeData ChestGaze  => UpdateGazePoseData(_chestGazeCache,  _gazePose?.ChestGaze);
 
             /// <summary>
-            /// Nested GazeData class for structured gaze information
+            /// Mutable gaze data container — updated in place each tick, never re-allocated.
             /// </summary>
             public class GazeData
             {
-                public Vector3? Position { get; }
-                public Quaternion? Rotation { get; }
-                public Vector3? GazeForward { get; }
-                public Vector3? GazePoint { get; }
-
-                public GazeData(Vector3? position, Quaternion? rotation, Vector3? forward, Vector3? point)
-                {
-                    Position = position;
-                    Rotation = rotation;
-                    GazeForward = forward;
-                    GazePoint = point;
-                }
+                public Vector3?    Position    { get; private set; }
+                public Quaternion? Rotation    { get; private set; }
+                public Vector3?    GazeForward { get; private set; }
+                public Vector3?    GazePoint   { get; private set; }
 
                 public bool IsAllNull =>
                     Position == null && Rotation == null && GazeForward == null && GazePoint == null;
+
+                public void Update(Vector3? position, Quaternion? rotation, Vector3? forward, Vector3? point)
+                {
+                    Position    = position;
+                    Rotation    = rotation;
+                    GazeForward = forward;
+                    GazePoint   = point;
+                }
             }
 
-            /// <summary>
-            /// Helper method to get single eye gaze data (no raycast point)
-            /// </summary>
-            private GazeData GetSingleEyeData(Transform eyeTransform)
+            private GazeData UpdateSingleEyeData(GazeData cache, Transform eyeTransform)
             {
-                if (eyeTransform == null) return null;
+                if (eyeTransform == null)
+                {
+                    cache.Update(null, null, null, null);
+                    return null;
+                }
 
                 try
                 {
-                    Vector3? position = eyeTransform.position;
-                    Quaternion? rotation = eyeTransform.rotation;
-                    Vector3? forward = eyeTransform.forward;
-
-                    var data = new GazeData(position, rotation, forward, null);
-                    return data.IsAllNull ? null : data;
+                    cache.Update(eyeTransform.position, eyeTransform.rotation, eyeTransform.forward, null);
+                    return cache.IsAllNull ? null : cache;
                 }
                 catch
                 {
+                    cache.Update(null, null, null, null);
                     return null;
                 }
             }
-            
-            /// <summary>
-            /// Helper method to get gaze pose data (includes raycast point)
-            /// </summary>
-            private GazeData GetGazePoseData(GazePose.GazePoseData gazePoseData)
+
+            private GazeData UpdateGazePoseData(GazeData cache, GazePose.GazePoseData gazePoseData)
             {
-                if (gazePoseData == null) return null;
+                if (gazePoseData == null)
+                {
+                    cache.Update(null, null, null, null);
+                    return null;
+                }
 
                 try
                 {
-                    var transform = gazePoseData.GetTransform();
-                    if (transform == null) return null;
+                    var t = gazePoseData.GetTransform();
+                    if (t == null)
+                    {
+                        cache.Update(null, null, null, null);
+                        return null;
+                    }
 
-                    Vector3? position = transform.position;
-                    Quaternion? rotation = transform.rotation;
-                    Vector3? forward = transform.forward;
-                    Vector3? point = gazePoseData.GetGazePoint();
-
-                    var data = new GazeData(position, rotation, forward, point);
-                    return data.IsAllNull ? null : data;
+                    cache.Update(t.position, t.rotation, t.forward, gazePoseData.GetGazePoint());
+                    return cache.IsAllNull ? null : cache;
                 }
                 catch
                 {
+                    cache.Update(null, null, null, null);
                     return null;
                 }
             }

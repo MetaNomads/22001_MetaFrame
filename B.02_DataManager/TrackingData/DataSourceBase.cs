@@ -2,10 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Sirenix.OdinInspector;
-using UnityEngine.UIElements;
 using Unity.Mathematics;
 using System.Reflection;
-
 
 namespace MetaFrame.Data
 {
@@ -15,6 +13,11 @@ namespace MetaFrame.Data
     public interface IDataSource
     {
         string SourceName { get; }
+
+        // FIX: pre-lowercased name cached at Initialize() so CollectAllData()
+        // never calls ToLower() (and allocates a new string) every recording tick.
+        string SourceNameLower { get; }
+
         void Initialize(DataManager manager);
         Dictionary<string, object> CollectData();
     }
@@ -26,7 +29,6 @@ namespace MetaFrame.Data
         where TDataStructure : class
         where TRecordingConfig : class, new()
     {
-
         [FoldoutGroup("RecordConfig"), PropertyOrder(99)]
         [InlineProperty, HideLabel]
         [SerializeField]
@@ -35,11 +37,17 @@ namespace MetaFrame.Data
         [SerializeField] public DataManager dataManager;
 
         public abstract string SourceName { get; }
+
+        // FIX: cached in Initialize() — no allocation on hot recording path.
+        private string _sourceNameLower;
+        public string SourceNameLower => _sourceNameLower;
+
         public TDataStructure Data { get; protected set; }
 
         public virtual void Initialize(DataManager manager)
         {
-            dataManager = manager;
+            dataManager       = manager;
+            _sourceNameLower  = SourceName.ToLower(); // cache once, never allocate again
             manager.RegisterDataSource(this);
         }
 
@@ -48,16 +56,16 @@ namespace MetaFrame.Data
             Data = CreateData();
             OnDataInitialized();
         }
-        
+
         /// <summary>
         /// Override for post-initialization setup
         /// </summary>
         protected virtual void OnDataInitialized() { }
-        
+
         protected abstract TDataStructure CreateData();
         public abstract Dictionary<string, object> CollectData();
 
-
+        // ── Data Utilities ────────────────────────────────────────────────────────
 
         /// <summary>
         /// Utility for extracting transform data
@@ -73,43 +81,76 @@ namespace MetaFrame.Data
         }
 
         /// <summary>
-        // Utility for extracting position data
-        /// <summary>
+        /// Utility for extracting position data
+        /// </summary>
         protected object GetPositionData(Transform transform)
         {
             if (transform == null) return null;
             return new float[] { transform.position.x, transform.position.y, transform.position.z };
         }
+
         protected object GetPositionData(Vector3 position)
         {
-            if (position == null) return null;
             return new float[] { position.x, position.y, position.z };
         }
 
         /// <summary>
-        // Utility for extracting rotation data
-        /// <summary>
+        /// Utility for extracting rotation data
+        /// </summary>
         protected object GetRotationData(Transform transform)
         {
             if (transform == null) return null;
             return new float[] { transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w };
         }
-        /// <summary>
-        // Utility for extracting object data
-        /// <summary>
-        protected Dictionary<string, object> GetObjectData(object obj)
+
+        // ── Precision ─────────────────────────────────────────────────────────────
+
+        protected void ApplyPrecisionToData(Dictionary<string, object> data, int precision)
         {
-            if (obj == null) return null;
-            var dict = new Dictionary<string, object>();
-            foreach (var prop in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                dict[prop.Name] = prop.GetValue(obj, null);
-            }
-            return dict;
+            var keys = new List<string>(data.Keys);
+            foreach (var key in keys)
+                data[key] = ApplyPrecisionToValue(data[key], precision);
         }
-        /// <summary>
-        // Utility for calculating turn, pitch, and tilt angles
-        /// <summary>
+
+        protected object ApplyPrecisionToValue(object value, int precision)
+        {
+            if (value == null) return null;
+
+            switch (value)
+            {
+                case float f:
+                    return (float)Math.Round(f, precision, MidpointRounding.AwayFromZero);
+
+                case double d:
+                    return Math.Round(d, precision, MidpointRounding.AwayFromZero);
+
+                case float[] floatArray:
+                    for (int i = 0; i < floatArray.Length; i++)
+                        floatArray[i] = (float)Math.Round(floatArray[i], precision, MidpointRounding.AwayFromZero);
+                    return floatArray;
+
+                case double[] doubleArray:
+                    for (int i = 0; i < doubleArray.Length; i++)
+                        doubleArray[i] = Math.Round(doubleArray[i], precision, MidpointRounding.AwayFromZero);
+                    return doubleArray;
+
+                case Dictionary<string, object> dict:
+                    ApplyPrecisionToData(dict, precision);
+                    return dict;
+
+                default:
+                    // FIX: removed the reflection fallback (ApplyPrecisionToObject) that
+                    // was called for anonymous objects. Anonymous objects no longer appear
+                    // in the recording pipeline — FACS and Hand data sources now use
+                    // float[] directly. If a new data source mistakenly produces an
+                    // anonymous object it will pass through unrounded, which is preferable
+                    // to paying reflection costs on every recording tick.
+                    return value;
+            }
+        }
+
+        // ── Angle Utilities ───────────────────────────────────────────────────────
+
         public float? CalculateTurn(Transform tartgetVector, Transform refVector, float direction)
         {
             float angle = Vector3.SignedAngle(
@@ -142,33 +183,5 @@ namespace MetaFrame.Data
             angle = math.remap(0f, 90f, 0f, 1f, angle);
             return angle < 0 ? null : angle;
         }
-        /// <summary>
-        /// Safe utility for extracting values with error handling
-        /// </summary>
-        // protected float? GetFloatValue(Func<float> valueGetter)
-        // {
-        //     try
-        //     {
-        //         return valueGetter?.Invoke();
-        //     }
-        //     catch
-        //     {
-        //         return null;
-        //     }
-        // }
-
-        // protected T SafeGetValue<T>(Func<T> valueGetter, T defaultValue = null) where T : class
-        // {
-        //     try
-        //     {
-        //         return valueGetter?.Invoke() ?? defaultValue;
-        //     }
-        //     catch
-        //     {
-        //         return defaultValue;
-        //     }
-        // }
-
-
     }
 }
