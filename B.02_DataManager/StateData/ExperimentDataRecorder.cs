@@ -15,13 +15,13 @@ namespace MetaFrame.Data
         public string source;
         public string from;
         public string to;
-        public long   timestamp;
+        public long timestamp;
 
         public TransitionEvent(string from, string to, DateTime time, string source = null)
         {
-            this.source    = string.IsNullOrEmpty(source) ? null : source;
-            this.from      = from;
-            this.to        = to;
+            this.source = string.IsNullOrEmpty(source) ? null : source;
+            this.from = from;
+            this.to = to;
             this.timestamp = new DateTimeOffset(time).ToUnixTimeMilliseconds();
         }
     }
@@ -31,16 +31,17 @@ namespace MetaFrame.Data
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string detection;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string confidence;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string plausibility;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long?  reportStart;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long?  reportEnd;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string explanation;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long? reportStart;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long? reportEnd;
     }
 
     public class TrialRecord
     {
-        public int    trialNumber;
+        public int trialNumber;
         public string stimulus;
 
-        public List<TransitionEvent> stateTransitions   = new();
+        public List<TransitionEvent> stateTransitions = new();
         public List<TransitionEvent> anomalyTransitions = new();
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
@@ -50,18 +51,18 @@ namespace MetaFrame.Data
     public class SessionRecord
     {
         public string sessionLabel;
-        public long   sessionStart;
+        public long sessionStart;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public long?  sessionEnd;
+        public long? sessionEnd;
         public List<TrialRecord> trials = new();
     }
 
     public class ExperimentRecord
     {
-        public int    subjectID;
-        public long   experimentStart;
+        public int subjectID;
+        public long experimentStart;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public long?  experimentEnd;
+        public long? experimentEnd;
         public List<SessionRecord> sessions = new();
     }
 
@@ -72,7 +73,8 @@ namespace MetaFrame.Data
         public string detection;
         public string confidence;
         public string plausibility;
-        public long?  reportStart;
+        public string explanation;
+        public long? reportStart;
     }
 
     // ── ExperimentDataRecorder ────────────────────────────────────────────────────────
@@ -80,9 +82,9 @@ namespace MetaFrame.Data
     public class ExperimentDataRecorder : MonoBehaviour
     {
         [Header("References")]
-        [SerializeField] private GameStateManager     gsm;
+        [SerializeField] private GameStateManager gsm;
         [SerializeField] private TrackingDataRecorder trackingdataRecorder;
-        [SerializeField] private SurveyDataRecorder   surveyRecorder;
+        [SerializeField] private SurveyDataRecorder surveyRecorder;
 
         // ── File path ──────────────────────────────────────────────────────────────
 
@@ -93,9 +95,9 @@ namespace MetaFrame.Data
         // ── In-memory state ────────────────────────────────────────────────────────
 
         private ExperimentRecord _experiment;
-        private SessionRecord    _currentSession;
-        private TrialRecord      _currentTrial;
-        private string           _prevGsmStateName;
+        private SessionRecord _currentSession;
+        private TrialRecord _currentTrial;
+        private string _prevGsmStateName;
 
         // ── ASM tracking ──────────────────────────────────────────────────────────
 
@@ -111,32 +113,32 @@ namespace MetaFrame.Data
         private void OnEnable()
         {
             ExperimentSequencer.OnExperimentBegan += OnExperimentBegan;
-            ExperimentSequencer.OnSessionBegan    += OnSessionBegan;
-            ExperimentSequencer.OnSessionEnded    += OnSessionEnded;
-            ExperimentSequencer.OnTrialBegan      += OnTrialBegan;
-            ExperimentSequencer.OnTrialEnded      += OnTrialEnded;
+            ExperimentSequencer.OnSessionBegan += OnSessionBegan;
+            ExperimentSequencer.OnSessionEnded += OnSessionEnded;
+            ExperimentSequencer.OnTrialBegan += OnTrialBegan;
+            ExperimentSequencer.OnTrialEnded += OnTrialEnded;
             ExperimentSequencer.OnExperimentEnded += OnExperimentEnded;
 
             if (gsm != null)
                 gsm.OnStateChanged += OnStateChanged;
 
-            AnomalyStateManager.OnRegistered   += TrackAsm;
+            AnomalyStateManager.OnRegistered += TrackAsm;
             AnomalyStateManager.OnUnregistered += UntrackAsm;
         }
 
         private void OnDisable()
         {
             ExperimentSequencer.OnExperimentBegan -= OnExperimentBegan;
-            ExperimentSequencer.OnSessionBegan    -= OnSessionBegan;
-            ExperimentSequencer.OnSessionEnded    -= OnSessionEnded;
-            ExperimentSequencer.OnTrialBegan      -= OnTrialBegan;
-            ExperimentSequencer.OnTrialEnded      -= OnTrialEnded;
+            ExperimentSequencer.OnSessionBegan -= OnSessionBegan;
+            ExperimentSequencer.OnSessionEnded -= OnSessionEnded;
+            ExperimentSequencer.OnTrialBegan -= OnTrialBegan;
+            ExperimentSequencer.OnTrialEnded -= OnTrialEnded;
             ExperimentSequencer.OnExperimentEnded -= OnExperimentEnded;
 
             if (gsm != null)
                 gsm.OnStateChanged -= OnStateChanged;
 
-            AnomalyStateManager.OnRegistered   -= TrackAsm;
+            AnomalyStateManager.OnRegistered -= TrackAsm;
             AnomalyStateManager.OnUnregistered -= UntrackAsm;
 
             foreach (var asm in _trackedAsms)
@@ -171,7 +173,7 @@ namespace MetaFrame.Data
 
             _experiment = new ExperimentRecord
             {
-                subjectID       = subjectID,
+                subjectID = subjectID,
                 experimentStart = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
 
@@ -216,7 +218,7 @@ namespace MetaFrame.Data
             _currentTrial = new TrialRecord
             {
                 trialNumber = _currentSession.trials.Count + 1,
-                stimulus    = stimulus,
+                stimulus = stimulus,
             };
 
             //// trial_start was entered before OnTrialBegan fired — record it as the opening entry
@@ -273,11 +275,12 @@ namespace MetaFrame.Data
             var data = surveyRecorder.Collect();
             _currentTrial.survey = new SurveyEntry
             {
-                detection    = data.detection,
-                confidence   = data.confidence,
+                detection = data.detection,
+                confidence = data.confidence,
                 plausibility = data.plausibility,
-                reportStart  = data.reportStart,
-                reportEnd    = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                explanation = data.explanation,
+                reportStart = data.reportStart,
+                reportEnd = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
 
             Flush();
@@ -294,11 +297,12 @@ namespace MetaFrame.Data
 
             _currentTrial.survey = new SurveyEntry
             {
-                detection    = data.detection,
-                confidence   = data.confidence,
+                detection = data.detection,
+                confidence = data.confidence,
                 plausibility = data.plausibility,
-                reportStart  = data.reportStart,
-                reportEnd    = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                explanation = data.explanation,
+                reportStart = data.reportStart,
+                reportEnd = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
 
             Flush();
@@ -316,7 +320,7 @@ namespace MetaFrame.Data
 
             _currentTrial.stateTransitions.Add(new TransitionEvent(
                 from: gsm.StateName(fromIndex),
-                to:   gsm.StateName(toIndex),
+                to: gsm.StateName(toIndex),
                 time: timestamp));
         }
 
@@ -330,9 +334,9 @@ namespace MetaFrame.Data
             // all three allocate new strings on every call. AnomalyStateName()
             // returns a pre-allocated static string; CachedName is set at Start().
             _currentTrial.anomalyTransitions.Add(new TransitionEvent(
-                from:   AnomalyStateManager.AnomalyStateName(from),
-                to:     AnomalyStateManager.AnomalyStateName(to),
-                time:   timestamp,
+                from: AnomalyStateManager.AnomalyStateName(from),
+                to: AnomalyStateManager.AnomalyStateName(to),
+                time: timestamp,
                 source: sender.CachedName));
         }
 
@@ -351,7 +355,7 @@ namespace MetaFrame.Data
                 var settings = new JsonSerializerSettings
                 {
                     NullValueHandling = NullValueHandling.Ignore,
-                    Formatting        = Formatting.Indented,
+                    Formatting = Formatting.Indented,
                 };
                 File.WriteAllText(path, JsonConvert.SerializeObject(_experiment, settings));
             }

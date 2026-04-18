@@ -19,9 +19,12 @@ public class SurveyControl : MonoBehaviour
     [Tooltip("Plausibility panel. Enabled/disabled externally via the event system.")]
     [SerializeField] private GameObject surveyPlausibility;
 
+    [Tooltip("Explanation panel. Enabled/disabled externally via the event system.")]
+    [SerializeField] private GameObject surveyExplanation;
+
     [Header("Detection Toggles")]
-    [SerializeField] private Toggle      toggle_y;
-    [SerializeField] private Toggle      toggle_n;
+    [SerializeField] private Toggle toggle_y;
+    [SerializeField] private Toggle toggle_n;
     [SerializeField] private ToggleGroup detectionGroup;
 
     [Header("Confidence Toggle Group")]
@@ -30,18 +33,27 @@ public class SurveyControl : MonoBehaviour
     [Header("Plausibility Toggle Group")]
     [SerializeField] private ToggleGroup plausibilityGroup;
 
-    [Header("All Survey Toggles (drag every survey toggle here)")]
-    [Tooltip("Drag every Toggle from all three panels here. " +
-             "ClearSelection uses direct references so toggles on inactive " +
-             "panels are always reached.")]
-    [SerializeField] private List<Toggle> allToggles = new();
+    [Header("Explanation Toggle Group")]
+    [SerializeField] private ToggleGroup explanationGroup;
 
     [Header("Survey Data")]
     [SerializeField] private SurveyDataRecorder surveyDataRecorder;
 
+    // Auto-populated from the four groups at Awake — no manual drag needed.
+    // Includes inactive toggles so panels disabled at startup are still reached.
+    private readonly List<Toggle> allToggles = new();
+
     // =========================================================================
     // Lifecycle
     // =========================================================================
+
+    private void Awake()
+    {
+        CollectToggles(detectionGroup);
+        CollectToggles(confidenceGroup);
+        CollectToggles(plausibilityGroup);
+        CollectToggles(explanationGroup);
+    }
 
     private void Start()
     {
@@ -54,19 +66,34 @@ public class SurveyControl : MonoBehaviour
         ClearSelection();
     }
 
+    private void CollectToggles(ToggleGroup group)
+    {
+        if (group == null) return;
+
+        // includeInactive: true so toggles on panels disabled at startup are reached
+        var found = group.GetComponentsInChildren<Toggle>(includeInactive: true);
+        foreach (var t in found)
+        {
+            if (t != null && t.group == group && !allToggles.Contains(t))
+                allToggles.Add(t);
+        }
+    }
+
     // =========================================================================
     // Gate
     //
     //   surveySdt active          → detection must be answered
     //   surveyConfidence active   → confidence must be answered
     //   surveyPlausibility active → plausibility must be answered
+    //   surveyExplanation active  → explanation must be answered
     // =========================================================================
 
     public bool CanProceed()
     {
-        bool sdtActive          = surveySdt         != null && surveySdt.activeInHierarchy;
-        bool confidenceActive   = surveyConfidence   != null && surveyConfidence.activeInHierarchy;
+        bool sdtActive = surveySdt != null && surveySdt.activeInHierarchy;
+        bool confidenceActive = surveyConfidence != null && surveyConfidence.activeInHierarchy;
         bool plausibilityActive = surveyPlausibility != null && surveyPlausibility.activeInHierarchy;
+        bool explanationActive = surveyExplanation != null && surveyExplanation.activeInHierarchy;
 
         if (sdtActive && !AnyTogglesOnInGroup(detectionGroup))
             return false;
@@ -75,6 +102,9 @@ public class SurveyControl : MonoBehaviour
             return false;
 
         if (plausibilityActive && !AnyTogglesOnInGroup(plausibilityGroup))
+            return false;
+
+        if (explanationActive && !AnyTogglesOnInGroup(explanationGroup))
             return false;
 
         return true;
@@ -86,11 +116,10 @@ public class SurveyControl : MonoBehaviour
 
     public void Push()
     {
-        if (surveySdt == null || !surveySdt.activeInHierarchy) return;
-
         surveyDataRecorder.SetDetection(GetToggleValue(detectionGroup));
         surveyDataRecorder.SetConfidence(GetToggleValue(confidenceGroup));
         surveyDataRecorder.SetPlausibility(GetToggleValue(plausibilityGroup));
+        surveyDataRecorder.SetExplanation(GetToggleValue(explanationGroup));
     }
 
     public void Capture(ExperimentDataRecorder recorder)

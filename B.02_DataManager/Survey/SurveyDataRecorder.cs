@@ -15,13 +15,15 @@ namespace MetaFrame.Data
         private string _detection;
         private string _confidence;
         private string _plausibility;
-        private long?  _reportStart;
+        private string _explanation;
+        private long? _reportStart;
 
         // ── Public setters — wire these to your UI ────────────────────────────────
 
-        public void SetDetection(string value)    => _detection    = value;
-        public void SetConfidence(string value)   => _confidence   = value;
+        public void SetDetection(string value) => _detection = value;
+        public void SetConfidence(string value) => _confidence = value;
         public void SetPlausibility(string value) => _plausibility = value;
+        public void SetExplanation(string value) => _explanation = value;
 
         /// <summary>
         /// Stamps report start time on first call per trial.
@@ -52,10 +54,11 @@ namespace MetaFrame.Data
         {
             var data = new SurveyData
             {
-                detection    = _detection,
-                confidence   = _confidence,
+                detection = _detection,
+                confidence = _confidence,
                 plausibility = _plausibility,
-                reportStart  = _reportStart,
+                explanation = _explanation,
+                reportStart = _reportStart,
             };
 
             Reset();
@@ -65,10 +68,11 @@ namespace MetaFrame.Data
         /// <summary>Clears all response state. Called automatically by Collect().</summary>
         public void Reset()
         {
-            _detection    = null;
-            _confidence   = null;
+            _detection = null;
+            _confidence = null;
             _plausibility = null;
-            _reportStart  = null;
+            _explanation = null;
+            _reportStart = null;
         }
     }
 }

@@ -10,7 +10,15 @@ using MetaFrame.Interaction;
 using System.Collections;
 
 namespace MetaFrame.Data
-{   
+{
+    // NOTE on execution order: do NOT add [DefaultExecutionOrder] to this class or to
+    // TrackingDataRecorder. OVR's subsystems (OVRManager, OVRFaceExpressions, OVRSkeleton,
+    // GazePose) initialize in default Unity order and are sensitive to being preempted —
+    // forcing DataManager to run earlier than default caused OVR face/eye/body/hand
+    // tracking to fail silently. Default order is the right choice for everything in
+    // this chain. Start-order between DataManager and TrackingDataRecorder is handled
+    // defensively inside TrackingDataRecorder (see the null/empty check in
+    // LogDataSourcesOnce, plus the deferred retry below).
     public class DataManager : MonoBehaviour
     {
         [SerializeField] internal TransformConfig config;
@@ -25,7 +33,7 @@ namespace MetaFrame.Data
 
         // Plugin architecture for extensibility
         internal List<IDataSource> _dataSources = new List<IDataSource>();
-        
+
         // Direct access to other data structures
         public DataSource_FACS.DataStructure FACSData => FACS?.Data;
         public DataSource_Body.DataStructure BodyData => Body?.Data;
@@ -38,10 +46,11 @@ namespace MetaFrame.Data
             InitializeDataSources();
         }
 
-        private void Update()
-        {
-            // StartCoroutine(TestDebugLogs());
-        }
+        // FIX: empty Update() removed. Unity invokes Update() on every MonoBehaviour that
+        // defines one, even if the body is empty — a few hundred nanoseconds per frame.
+        // Trivial by itself, but adds up across many empty Updates in a large project and
+        // blocks any future batching optimizations Unity does on script callbacks.
+        // If you need per-frame logic later, reintroduce Update() at that point.
 
         /// <summary>
         /// Initialize all data sources using plugin architecture
