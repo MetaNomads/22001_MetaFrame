@@ -30,32 +30,32 @@ namespace MetaFrame.Data
         public static int Port = 12345;
 
         // ── State ─────────────────────────────────────────────────────────────
-        private static UdpClient _recv;
-        private static UdpClient _send;
+        private static UdpClient      _recv;
+        private static UdpClient      _send;
         private static readonly object _sendLock = new object();
-        private static Thread _listenThread;
-        private static bool _running = false;
-        private static bool _initialized = false;
+        private static Thread          _listenThread;
+        private static bool            _running     = false;
+        private static bool            _initialized = false;
 
-        private static string _lslIP = null;
-        private static bool _connected = false;
+        private static string _lslIP     = null;
+        private static bool   _connected = false;
         private static string _deviceName;
 
-        private static double _nextAnnounceTime = 0;
-        private const double AnnounceInterval = 3.0;
+        private static double      _nextAnnounceTime = 0;
+        private const  double      AnnounceInterval  = 3.0;
 
-        private static volatile bool _dataRequested = false;
-        private static volatile string _pendingPingId = null;
+        private static volatile bool   _dataRequested = false;
+        private static volatile string _pendingPingId  = null;
 
         // Deferred recording requests — fired as soon as connection is ready
         private static volatile bool _pendingRecordingStart = false;
-        private static volatile bool _pendingRecordingStop = false;
+        private static volatile bool _pendingRecordingStop  = false;
 
         // Set by LSLServiceTicker when play mode starts
         internal static DataManager DataManager;
 
 #if UNITY_EDITOR
-        private const string SESSION_IP = "LSLService.lslIP";
+        private const string SESSION_IP   = "LSLService.lslIP";
         private const string SESSION_CONN = "LSLService.connected";
 #endif
 
@@ -93,7 +93,7 @@ namespace MetaFrame.Data
         {
             if (!_initialized) Init();
             var go = new GameObject("[LSLServiceTicker]")
-            { hideFlags = HideFlags.HideAndDontSave };
+                { hideFlags = HideFlags.HideAndDontSave };
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<LSLServiceTicker>();
         }
@@ -117,18 +117,18 @@ namespace MetaFrame.Data
 
                 _running = true;
                 _listenThread = new Thread(ListenLoop)
-                { IsBackground = true, Name = "LSLService" };
+                    { IsBackground = true, Name = "LSLService" };
                 _listenThread.Start();
 
                 _initialized = true;
 
                 // Restore previous connection across domain reload
 #if UNITY_EDITOR
-                string ip = SessionState.GetString(SESSION_IP, null);
-                bool conn = SessionState.GetBool(SESSION_CONN, false);
+                string ip   = SessionState.GetString(SESSION_IP, null);
+                bool   conn = SessionState.GetBool(SESSION_CONN, false);
                 if (conn && !string.IsNullOrEmpty(ip))
                 {
-                    _lslIP = ip;
+                    _lslIP     = ip;
                     _connected = true;
                     SendTo($"RECONNECT,{_deviceName}", ip);
                     Debug.Log($"[LSLService] Restored — LSL at {ip}");
@@ -209,8 +209,8 @@ namespace MetaFrame.Data
                         continue;
 
                     byte[] data = _recv.Receive(ref ep);
-                    string msg = Encoding.UTF8.GetString(data).Trim();
-                    string src = ep.Address.ToString();
+                    string msg  = Encoding.UTF8.GetString(data).Trim();
+                    string src  = ep.Address.ToString();
 
                     if (msg == "DISCOVER")
                     {
@@ -218,14 +218,14 @@ namespace MetaFrame.Data
                     }
                     else if (msg == "CONNECT")
                     {
-                        _lslIP = src;
+                        _lslIP     = src;
                         _connected = true;
                         SendTo($"CONNECTED,{_deviceName}", src);
+                        Debug.Log($"[LSLService] Connected — LSL at {src}");
 #if UNITY_EDITOR
                         SessionState.SetString(SESSION_IP, src);
                         SessionState.SetBool(SESSION_CONN, true);
 #endif
-                        Debug.Log($"[LSLService] Connected — LSL at {src}");
                         if (_pendingRecordingStart)
                         {
                             _pendingRecordingStart = false;
@@ -242,7 +242,7 @@ namespace MetaFrame.Data
                     else if (msg == "DISCONNECT")
                     {
                         _connected = false;
-                        _lslIP = null;
+                        _lslIP     = null;
 #if UNITY_EDITOR
                         SessionState.SetBool(SESSION_CONN, false);
 #endif
@@ -262,7 +262,7 @@ namespace MetaFrame.Data
                     }
                 }
                 catch (ObjectDisposedException) { break; }
-                catch (ThreadAbortException) { Thread.ResetAbort(); break; }
+                catch (ThreadAbortException)    { Thread.ResetAbort(); break; }
                 catch { }
             }
         }
@@ -276,58 +276,30 @@ namespace MetaFrame.Data
             try
             {
                 long ts = ToUnixNs(DateTime.UtcNow);
-                var sb = new System.Text.StringBuilder(256);
+                var  sb = new System.Text.StringBuilder(256);
                 sb.Append($"DATA,unity,{ts}");
 
                 // Body — use public BodyData accessor (Body field is internal)
-                try
-                {
-                    var h = dm.BodyData?.Head;
-                    if (h != null)
-                    {
-                        var r = h.rotation;
-                        sb.Append($",headRot={r.x:F4},{r.y:F4},{r.z:F4},{r.w:F4}");
-                    }
-                }
-                catch { }
-                try
-                {
-                    var rp = dm.BodyData?.RightHandPalm;
-                    if (rp != null)
-                    {
-                        var r = rp.rotation;
-                        sb.Append($",rightPalmRot={r.x:F4},{r.y:F4},{r.z:F4},{r.w:F4}");
-                    }
-                }
-                catch { }
-                try
-                {
-                    var lp = dm.BodyData?.LeftHandPalm;
-                    if (lp != null)
-                    {
-                        var r = lp.rotation;
-                        sb.Append($",leftPalmRot={r.x:F4},{r.y:F4},{r.z:F4},{r.w:F4}");
-                    }
-                }
-                catch { }
+                try { var h = dm.BodyData?.Head;
+                    if (h != null) { var r = h.rotation;
+                        sb.Append($",headRot={r.x:F4},{r.y:F4},{r.z:F4},{r.w:F4}"); } } catch { }
+                try { var rp = dm.BodyData?.RightHandPalm;
+                    if (rp != null) { var r = rp.rotation;
+                        sb.Append($",rightPalmRot={r.x:F4},{r.y:F4},{r.z:F4},{r.w:F4}"); } } catch { }
+                try { var lp = dm.BodyData?.LeftHandPalm;
+                    if (lp != null) { var r = lp.rotation;
+                        sb.Append($",leftPalmRot={r.x:F4},{r.y:F4},{r.z:F4},{r.w:F4}"); } } catch { }
 
                 // Gaze — use public GazeData accessor
-                try
-                {
-                    var g = dm.GazeData?.CenterGaze?.GazePoint;
-                    if (g.HasValue) sb.Append($",gazePointX={g.Value.x:F4}");
-                }
-                catch { }
+                try { var g = dm.GazeData?.CenterGaze?.GazePoint;
+                    if (g.HasValue) sb.Append($",gazePointX={g.Value.x:F4}"); } catch { }
 
                 // FACS — use public FACSData accessor (FACS field is internal)
-                try
-                {
+                try {
                     var facs = dm.FACSData;
-                    Debug.Log($"[LSLService] FACSData null={facs == null}");
                     if (facs != null)
                     {
                         var au1 = facs.AU1_InnerBrowRaiser;
-                        Debug.Log($"[LSLService] AU1 L={au1.InnerBrowRaiserL} R={au1.InnerBrowRaiserR}");
                         // AU1 Inner Brow Raiser — aggregate (mean L+R)
                         if (au1.InnerBrowRaiserL.HasValue && au1.InnerBrowRaiserR.HasValue)
                             sb.Append($",au1={(au1.InnerBrowRaiserL.Value + au1.InnerBrowRaiserR.Value) * 0.5f:F4}");
@@ -347,8 +319,7 @@ namespace MetaFrame.Data
                         if (au43.EyesClosedL.HasValue && au43.EyesClosedR.HasValue)
                             sb.Append($",blink={(au43.EyesClosedL.Value + au43.EyesClosedR.Value) * 0.5f:F4}");
                     }
-                }
-                catch { }
+                } catch { }
 
                 SendTo(sb.ToString(), _lslIP);
             }
@@ -362,7 +333,7 @@ namespace MetaFrame.Data
             if (!_connected || string.IsNullOrEmpty(_lslIP))
             {
                 _pendingRecordingStart = true;
-                _pendingRecordingStop = false;
+                _pendingRecordingStop  = false;
                 Debug.Log("[LSLService] RequestRecordingStart queued — waiting for connection");
                 return;
             }
