@@ -12,7 +12,7 @@ public class SurveyControl : MonoBehaviour
     //   Idle         — no panels visible, survey not started
     //   Stage1_Q1Q2  — Q1 + Q2 + Continue visible
     //   Stage2_Q3    — Q3 + Continue visible (only reached if Q1 != q1EndValue)
-    //   Stage3_Q4    — Q4 alone + Continue visible (only reached if Q3 == q3BranchValue)
+    //   Stage3_Q4    — Q4 alone + Continue visible (always follows Stage2_Q3)
     //   Stage4_Q5    — Q5 alone + Continue visible (always follows Stage3_Q4)
     // =========================================================================
 
@@ -58,12 +58,8 @@ public class SurveyControl : MonoBehaviour
 
     [Header("Branch Values")]
     [Tooltip("Q1 ToggleID value that ENDS the survey (no follow-up questions).\n" +
-             "Any other value branches into Q3.")]
+             "Any other value continues into Q3 → Q4 → Q5.")]
     [SerializeField] private string q1EndValue = "no";
-
-    [Tooltip("Q3 ToggleID value that BRANCHES into Q4 then Q5.\n" +
-             "Any other value (e.g. \"2\", \"3\") ends the survey.")]
-    [SerializeField] private string q3BranchValue = "1";
 
     // =========================================================================
     // Inspector fields — References
@@ -191,11 +187,8 @@ public class SurveyControl : MonoBehaviour
         // Record.
         surveyDataRecorder?.SetQ3(q3);
 
-        // Branch: q3BranchValue continues to Q4 (then Q5); anything else terminates.
-        if (q3 == q3BranchValue)
-            ShowStage3();
-        else
-            CommitAndStep();
+        // No branching — Q3 always proceeds to Q4 regardless of answer.
+        ShowStage3();
     }
 
     private void HandleStage3()
