@@ -1,46 +1,81 @@
 using System.Collections.Generic;
 using MetaFrame.Data;
+using MetaFrame.State;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class SurveyControl : MonoBehaviour
 {
     // =========================================================================
-    // Inspector fields
+    // Stage tracking
+    //
+    //   Idle         — no panels visible, survey not started
+    //   Stage1_Q1Q2  — Q1 + Q2 + Continue visible
+    //   Stage2_Q3    — Q3 + Continue visible (only reached if Q1 != q1EndValue)
+    //   Stage3_Q4Q5  — Q4 + Q5 + Continue visible (only reached if Q3 == q3BranchValue)
     // =========================================================================
 
-    [Header("Survey Panels")]
-    [Tooltip("Detection yes/no panel. Enabled/disabled externally via the event system.")]
-    [SerializeField] private GameObject surveySdt;
+    private enum SurveyStage
+    {
+        Idle,
+        Stage1_Q1Q2,
+        Stage2_Q3,
+        Stage3_Q4Q5,
+    }
 
-    [Tooltip("Confidence panel. Enabled/disabled externally via the event system.")]
-    [SerializeField] private GameObject surveyConfidence;
+    private SurveyStage _stage = SurveyStage.Idle;
 
-    [Tooltip("Plausibility panel. Enabled/disabled externally via the event system.")]
-    [SerializeField] private GameObject surveyPlausibility;
+    // =========================================================================
+    // Inspector fields — Panels
+    // =========================================================================
 
-    [Tooltip("Explanation panel. Enabled/disabled externally via the event system.")]
-    [SerializeField] private GameObject surveyExplanation;
+    [Header("Panels (all disabled at scene start)")]
+    [SerializeField] private GameObject q1Panel;
+    [SerializeField] private GameObject q2Panel;
+    [SerializeField] private GameObject q3Panel;
+    [SerializeField] private GameObject q4Panel;
+    [SerializeField] private GameObject q5Panel;
+    [SerializeField] private GameObject continueButton;
 
-    [Header("Detection Toggles")]
-    [SerializeField] private Toggle toggle_y;
-    [SerializeField] private Toggle toggle_n;
-    [SerializeField] private ToggleGroup detectionGroup;
+    // =========================================================================
+    // Inspector fields — Toggle Groups
+    // =========================================================================
 
-    [Header("Confidence Toggle Group")]
-    [SerializeField] private ToggleGroup confidenceGroup;
+    [Header("Toggle Groups (one per question)")]
+    [SerializeField] private ToggleGroup q1Group;
+    [SerializeField] private ToggleGroup q2Group;
+    [SerializeField] private ToggleGroup q3Group;
+    [SerializeField] private ToggleGroup q4Group;
+    [SerializeField] private ToggleGroup q5Group;
 
-    [Header("Plausibility Toggle Group")]
-    [SerializeField] private ToggleGroup plausibilityGroup;
+    // =========================================================================
+    // Inspector fields — Branch values
+    //
+    //   These must match the ToggleID.value strings on your toggle prefabs.
+    // =========================================================================
 
-    [Header("Explanation Toggle Group")]
-    [SerializeField] private ToggleGroup explanationGroup;
+    [Header("Branch Values")]
+    [Tooltip("Q1 ToggleID value that ENDS the survey (no follow-up questions).\n" +
+             "Any other value branches into Q3.")]
+    [SerializeField] private string q1EndValue = "no";
 
-    [Header("Survey Data")]
-    [SerializeField] private SurveyDataRecorder surveyDataRecorder;
+    [Tooltip("Q3 ToggleID value that BRANCHES into Q4 + Q5.\n" +
+             "Any other value (e.g. \"2\", \"3\") ends the survey.")]
+    [SerializeField] private string q3BranchValue = "1";
 
-    // Auto-populated from the four groups at Awake — no manual drag needed.
-    // Includes inactive toggles so panels disabled at startup are still reached.
+    // =========================================================================
+    // Inspector fields — References
+    // =========================================================================
+
+    [Header("References")]
+    [SerializeField] private SurveyDataRecorder      surveyDataRecorder;
+    [SerializeField] private ExperimentDataRecorder  experimentDataRecorder;
+    [SerializeField] private ExperimentController    experimentController;
+
+    // =========================================================================
+    // Internals
+    // =========================================================================
+
     private readonly List<Toggle> allToggles = new();
 
     // =========================================================================
@@ -49,10 +84,11 @@ public class SurveyControl : MonoBehaviour
 
     private void Awake()
     {
-        CollectToggles(detectionGroup);
-        CollectToggles(confidenceGroup);
-        CollectToggles(plausibilityGroup);
-        CollectToggles(explanationGroup);
+        CollectToggles(q1Group);
+        CollectToggles(q2Group);
+        CollectToggles(q3Group);
+        CollectToggles(q4Group);
+        CollectToggles(q5Group);
     }
 
     private void Start()
@@ -60,17 +96,22 @@ public class SurveyControl : MonoBehaviour
         foreach (var t in allToggles)
         {
             if (t != null)
-                t.onValueChanged.AddListener(_ => surveyDataRecorder.StartReport());
+                t.onValueChanged.AddListener(_ => surveyDataRecorder?.StartReport());
         }
 
+        // Defensive — panels should already be disabled in the scene, but make
+        // sure we start in a known idle state.
         ClearSelection();
+        HideAllPanels();
+        _stage = SurveyStage.Idle;
     }
 
     private void CollectToggles(ToggleGroup group)
     {
         if (group == null) return;
 
-        // includeInactive: true so toggles on panels disabled at startup are reached
+        // includeInactive: true — panels start disabled, so toggles must be
+        // reachable even when their parent panel is off.
         var found = group.GetComponentsInChildren<Toggle>(includeInactive: true);
         foreach (var t in found)
         {
@@ -80,51 +121,169 @@ public class SurveyControl : MonoBehaviour
     }
 
     // =========================================================================
-    // Gate
+    // Public API
+    // =========================================================================
+
+    /// <summary>
+    /// Entry point — call this from an event binding (e.g. an onEnter UnityEvent
+    /// when the GSM enters a survey state). Shows Q1, Q2, and the Continue button;
+    /// hides everything else; clears any stale selection from a previous trial.
+    /// </summary>
+    public void BeginSurvey()
+    {
+        ClearSelection();
+        ShowStage1();
+    }
+
+    /// <summary>
+    /// Wire this to the Continue button's onClick event.
+    /// Handles gatekeeping, recording, branching, and advancing the experiment.
+    /// </summary>
+    public void OnContinuePressed()
+    {
+        switch (_stage)
+        {
+            case SurveyStage.Stage1_Q1Q2: HandleStage1(); break;
+            case SurveyStage.Stage2_Q3:   HandleStage2(); break;
+            case SurveyStage.Stage3_Q4Q5: HandleStage3(); break;
+            // SurveyStage.Idle — Continue pressed with no active survey. No-op.
+        }
+    }
+
+    // =========================================================================
+    // Stage Handlers
     //
-    //   surveySdt active          → detection must be answered
-    //   surveyConfidence active   → confidence must be answered
-    //   surveyPlausibility active → plausibility must be answered
-    //   surveyExplanation active  → explanation must be answered
+    // Each handler:
+    //   1. Gate-checks the panels currently shown (early-return if incomplete).
+    //   2. Records the answers to SurveyDataRecorder.
+    //   3. Either branches to the next stage or commits and steps.
     // =========================================================================
 
-    public bool CanProceed()
+    private void HandleStage1()
     {
-        bool sdtActive = surveySdt != null && surveySdt.activeInHierarchy;
-        bool confidenceActive = surveyConfidence != null && surveyConfidence.activeInHierarchy;
-        bool plausibilityActive = surveyPlausibility != null && surveyPlausibility.activeInHierarchy;
-        bool explanationActive = surveyExplanation != null && surveyExplanation.activeInHierarchy;
+        // Gate: both Q1 and Q2 must be answered.
+        if (!AnyTogglesOnInGroup(q1Group) || !AnyTogglesOnInGroup(q2Group)) return;
 
-        if (sdtActive && !AnyTogglesOnInGroup(detectionGroup))
-            return false;
+        string q1 = GetToggleValue(q1Group);
+        string q2 = GetToggleValue(q2Group);
 
-        if (confidenceActive && !AnyTogglesOnInGroup(confidenceGroup))
-            return false;
+        // Record.
+        surveyDataRecorder?.SetQ1(q1);
+        surveyDataRecorder?.SetQ2(q2);
 
-        if (plausibilityActive && !AnyTogglesOnInGroup(plausibilityGroup))
-            return false;
+        // Branch: q1EndValue terminates the survey; anything else continues to Q3.
+        if (q1 == q1EndValue)
+            CommitAndStep();
+        else
+            ShowStage2();
+    }
 
-        if (explanationActive && !AnyTogglesOnInGroup(explanationGroup))
-            return false;
+    private void HandleStage2()
+    {
+        // Gate: Q3 must be answered.
+        if (!AnyTogglesOnInGroup(q3Group)) return;
 
-        return true;
+        string q3 = GetToggleValue(q3Group);
+
+        // Record.
+        surveyDataRecorder?.SetQ3(q3);
+
+        // Branch: q3BranchValue continues to Q4+Q5; anything else terminates.
+        if (q3 == q3BranchValue)
+            ShowStage3();
+        else
+            CommitAndStep();
+    }
+
+    private void HandleStage3()
+    {
+        // Gate: both Q4 and Q5 must be answered.
+        if (!AnyTogglesOnInGroup(q4Group) || !AnyTogglesOnInGroup(q5Group)) return;
+
+        string q4 = GetToggleValue(q4Group);
+        string q5 = GetToggleValue(q5Group);
+
+        // Record.
+        surveyDataRecorder?.SetQ4(q4);
+        surveyDataRecorder?.SetQ5(q5);
+
+        CommitAndStep();
     }
 
     // =========================================================================
-    // Push / Capture — called from ExperimentController.Step()
+    // Stage Transitions
     // =========================================================================
 
-    public void Push()
+    private void ShowStage1()
     {
-        surveyDataRecorder.SetDetection(GetToggleValue(detectionGroup));
-        surveyDataRecorder.SetConfidence(GetToggleValue(confidenceGroup));
-        surveyDataRecorder.SetPlausibility(GetToggleValue(plausibilityGroup));
-        surveyDataRecorder.SetExplanation(GetToggleValue(explanationGroup));
+        SetActive(q1Panel,        true);
+        SetActive(q2Panel,        true);
+        SetActive(q3Panel,        false);
+        SetActive(q4Panel,        false);
+        SetActive(q5Panel,        false);
+        SetActive(continueButton, true);
+        _stage = SurveyStage.Stage1_Q1Q2;
     }
 
-    public void Capture(ExperimentDataRecorder recorder)
+    private void ShowStage2()
     {
-        recorder?.CaptureSurvey();
+        SetActive(q1Panel,        false);
+        SetActive(q2Panel,        false);
+        SetActive(q3Panel,        true);
+        SetActive(q4Panel,        false);
+        SetActive(q5Panel,        false);
+        SetActive(continueButton, true);
+        _stage = SurveyStage.Stage2_Q3;
+    }
+
+    private void ShowStage3()
+    {
+        SetActive(q1Panel,        false);
+        SetActive(q2Panel,        false);
+        SetActive(q3Panel,        false);
+        SetActive(q4Panel,        true);
+        SetActive(q5Panel,        true);
+        SetActive(continueButton, true);
+        _stage = SurveyStage.Stage3_Q4Q5;
+    }
+
+    private void HideAllPanels()
+    {
+        SetActive(q1Panel,        false);
+        SetActive(q2Panel,        false);
+        SetActive(q3Panel,        false);
+        SetActive(q4Panel,        false);
+        SetActive(q5Panel,        false);
+        SetActive(continueButton, false);
+    }
+
+    // =========================================================================
+    // Commit + Step
+    //
+    // CaptureSurvey() must run BEFORE Step() — Step() fires OnTrialEnded inside
+    // sequencer.Advance(), which nulls _currentTrial in ExperimentDataRecorder.
+    // After that, CaptureSurvey() silently exits because there's no trial to
+    // attach to.
+    // =========================================================================
+
+    private void CommitAndStep()
+    {
+        // 1. Snapshot the staged answers into the current trial record.
+        //    ExperimentDataRecorder.CaptureSurvey() is expected to call
+        //    surveyDataRecorder.Collect() internally and attach the result.
+        experimentDataRecorder?.CaptureSurvey();
+
+        // 2. Advance the experiment. Step() returns void — we always reset the
+        //    survey UI after, regardless of whether Advance() was internally
+        //    blocked by a GSM allowedFrom rule. If something is misconfigured
+        //    such that Advance fails, the trial state is broken anyway and
+        //    leaving panels in place wouldn't help.
+        experimentController?.Step();
+
+        // 3. Reset survey UI for the next trial.
+        ClearSelection();
+        HideAllPanels();
+        _stage = SurveyStage.Idle;
     }
 
     // =========================================================================
@@ -148,7 +307,7 @@ public class SurveyControl : MonoBehaviour
             }
         }
 
-        surveyDataRecorder.Reset();
+        surveyDataRecorder?.Reset();
     }
 
     public void ResetAllGroups() => ClearSelection();
@@ -156,6 +315,11 @@ public class SurveyControl : MonoBehaviour
     // =========================================================================
     // Helpers
     // =========================================================================
+
+    private static void SetActive(GameObject go, bool active)
+    {
+        if (go != null && go.activeSelf != active) go.SetActive(active);
+    }
 
     private static bool AnyTogglesOnInGroup(ToggleGroup group)
     {

@@ -26,12 +26,17 @@ namespace MetaFrame.Data
         }
     }
 
+    /// <summary>
+    /// JSON-persisted survey shape. Fields are written in q1..q5 order.
+    /// Unanswered questions stay null and are omitted from output.
+    /// </summary>
     public class SurveyEntry
     {
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string detection;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string confidence;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string plausibility;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string explanation;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q1;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q2;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q3;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q4;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q5;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long? reportStart;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long? reportEnd;
     }
@@ -68,12 +73,20 @@ namespace MetaFrame.Data
 
     // ── Survey Input ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Input shape produced by SurveyDataRecorder.Collect().
+    ///
+    /// q1, q2 — always asked (Stage 1).
+    /// q3     — asked when q1 != q1EndValue (Stage 2).
+    /// q4, q5 — asked when q3 == q3BranchValue (Stage 3).
+    /// </summary>
     public class SurveyData
     {
-        public string detection;
-        public string confidence;
-        public string plausibility;
-        public string explanation;
+        public string q1;
+        public string q2;
+        public string q3;
+        public string q4;
+        public string q5;
         public long? reportStart;
     }
 
@@ -275,10 +288,11 @@ namespace MetaFrame.Data
             var data = surveyRecorder.Collect();
             _currentTrial.survey = new SurveyEntry
             {
-                detection = data.detection,
-                confidence = data.confidence,
-                plausibility = data.plausibility,
-                explanation = data.explanation,
+                q1 = data.q1,
+                q2 = data.q2,
+                q3 = data.q3,
+                q4 = data.q4,
+                q5 = data.q5,
                 reportStart = data.reportStart,
                 reportEnd = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
@@ -297,10 +311,11 @@ namespace MetaFrame.Data
 
             _currentTrial.survey = new SurveyEntry
             {
-                detection = data.detection,
-                confidence = data.confidence,
-                plausibility = data.plausibility,
-                explanation = data.explanation,
+                q1 = data.q1,
+                q2 = data.q2,
+                q3 = data.q3,
+                q4 = data.q4,
+                q5 = data.q5,
                 reportStart = data.reportStart,
                 reportEnd = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };

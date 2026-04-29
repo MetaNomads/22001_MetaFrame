@@ -1,5 +1,4 @@
 using UnityEngine;
-using MetaFrame.Data;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -11,36 +10,29 @@ namespace MetaFrame.State
     public class ExperimentController : MonoBehaviour
     {
         [SerializeField] private ExperimentSequencer sequencer;
-        [SerializeField] private ExperimentDataRecorder recorder;
-        [SerializeField] private SurveyControl surveyControl;
 
-        private void OnEnable() { }
-        private void OnDisable() { }
+        public ExperimentSequencer Sequencer => sequencer;
 
         // =========================================================================
-        // Step — always called by the physical button
+        // Step — generic "advance one beat" entry point.
         //
-        // Order:
-        //   1. Gate check     — block if survey incomplete
-        //   2. Push()         — snapshot toggle values while panel is visible
-        //   3. Capture()      — commit to _currentTrial NOW, before Advance() fires
-        //                       OnTrialEnded which nulls _currentTrial inside
-        //                       ExperimentDataRecorder — after that CaptureSurvey()
-        //                       silently exits because _currentTrial is null
-        //   4. Advance()      — GSM transitions; OnTrialEnded fires inside here
-        //   5. ClearSelection — reset toggles and visuals only on success
+        // Returns void to match the original signature so existing UnityEvent
+        // wiring in the inspector (state onEnter/onExit, button onClick, etc.)
+        // keeps working. Survey gating + recording now happens in
+        // SurveyControl.OnContinuePressed() before it calls Step().
+        //
+        // Safe to call from anywhere — outside a survey period this just
+        // advances the GSM/sequencer normally, the same way it always did.
         // =========================================================================
 
         public void Step()
         {
-            if (surveyControl != null && !surveyControl.CanProceed()) return;
-
-            surveyControl?.Push();
-            surveyControl?.Capture(recorder);
-
-            if (!sequencer.Advance()) return;
-
-            surveyControl?.ClearSelection();
+            if (sequencer == null)
+            {
+                Debug.LogError("[ExperimentController] No sequencer assigned.");
+                return;
+            }
+            sequencer.Advance();
         }
 
         // =========================================================================
@@ -60,18 +52,13 @@ namespace MetaFrame.State
 
         public void ForceStep()
         {
-            if (surveyControl != null && !surveyControl.CanProceed()) return;
-
-            surveyControl?.Push();
-            surveyControl?.Capture(recorder);
-
-            if (!AdvanceForced()) return;
-
-            surveyControl?.ClearSelection();
+            AdvanceForced();
         }
 
         private bool AdvanceForced()
         {
+            if (sequencer == null) return false;
+
             var gsm = sequencer.GSM;
             if (gsm == null) return sequencer.Advance();
 
@@ -135,7 +122,7 @@ namespace MetaFrame.State
         /// </summary>
         public void JumpToSession(int sessionNumber)
         {
-            sequencer.JumpToSessionIdle(sessionNumber);
+            sequencer?.JumpToSessionIdle(sessionNumber);
         }
     }
 
@@ -156,10 +143,6 @@ namespace MetaFrame.State
 
             if (inPlayMode)
             {
-                // FIX: was EditorUtility.SetDirty(target) which marks the object as
-                // modified on every inspector repaint, triggering undo system recording
-                // every frame. Repaint() achieves the same continuous label refresh
-                // without touching the serialization or undo stack.
                 Repaint();
                 string info = controller.GetCurrentSessionInfo();
                 EditorGUILayout.HelpBox(info, MessageType.None);
@@ -188,9 +171,11 @@ namespace MetaFrame.State
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.HelpBox(
-                "Force Step advances regardless of the current GSM state — " +
-                "use it to skip a trial mid-task (e.g. still at_source or in_hand).",
-                inPlayMode ? MessageType.None : MessageType.None);
+                "Step / Force Step now advance the experiment only — they do NOT " +
+                "gate-check or record survey answers. Survey logic lives in " +
+                "SurveyControl.OnContinuePressed(). Force Step also bypasses GSM " +
+                "allowedFrom rules.",
+                MessageType.None);
 
             // ── Jump to Session ───────────────────────────────────────────────────
             EditorGUILayout.Space(4);
@@ -208,7 +193,6 @@ namespace MetaFrame.State
             EditorGUILayout.BeginHorizontal();
             for (int s = 1; s <= sessionCount; s++)
             {
-                // Capture loop variable for the lambda.
                 int sessionNumber = s;
 
                 string label = inPlayMode && ExperimentSequencer.instance != null
