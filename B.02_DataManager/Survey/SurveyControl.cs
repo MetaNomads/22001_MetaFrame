@@ -12,7 +12,8 @@ public class SurveyControl : MonoBehaviour
     //   Idle         — no panels visible, survey not started
     //   Stage1_Q1Q2  — Q1 + Q2 + Continue visible
     //   Stage2_Q3    — Q3 + Continue visible (only reached if Q1 != q1EndValue)
-    //   Stage3_Q4Q5  — Q4 + Q5 + Continue visible (only reached if Q3 == q3BranchValue)
+    //   Stage3_Q4    — Q4 alone + Continue visible (only reached if Q3 == q3BranchValue)
+    //   Stage4_Q5    — Q5 alone + Continue visible (always follows Stage3_Q4)
     // =========================================================================
 
     private enum SurveyStage
@@ -20,7 +21,8 @@ public class SurveyControl : MonoBehaviour
         Idle,
         Stage1_Q1Q2,
         Stage2_Q3,
-        Stage3_Q4Q5,
+        Stage3_Q4,
+        Stage4_Q5,
     }
 
     private SurveyStage _stage = SurveyStage.Idle;
@@ -59,7 +61,7 @@ public class SurveyControl : MonoBehaviour
              "Any other value branches into Q3.")]
     [SerializeField] private string q1EndValue = "no";
 
-    [Tooltip("Q3 ToggleID value that BRANCHES into Q4 + Q5.\n" +
+    [Tooltip("Q3 ToggleID value that BRANCHES into Q4 then Q5.\n" +
              "Any other value (e.g. \"2\", \"3\") ends the survey.")]
     [SerializeField] private string q3BranchValue = "1";
 
@@ -145,7 +147,8 @@ public class SurveyControl : MonoBehaviour
         {
             case SurveyStage.Stage1_Q1Q2: HandleStage1(); break;
             case SurveyStage.Stage2_Q3:   HandleStage2(); break;
-            case SurveyStage.Stage3_Q4Q5: HandleStage3(); break;
+            case SurveyStage.Stage3_Q4:   HandleStage3(); break;
+            case SurveyStage.Stage4_Q5:   HandleStage4(); break;
             // SurveyStage.Idle — Continue pressed with no active survey. No-op.
         }
     }
@@ -156,7 +159,7 @@ public class SurveyControl : MonoBehaviour
     // Each handler:
     //   1. Gate-checks the panels currently shown (early-return if incomplete).
     //   2. Records the answers to SurveyDataRecorder.
-    //   3. Either branches to the next stage or commits and steps.
+    //   3. Either branches/advances to the next stage or commits and steps.
     // =========================================================================
 
     private void HandleStage1()
@@ -188,7 +191,7 @@ public class SurveyControl : MonoBehaviour
         // Record.
         surveyDataRecorder?.SetQ3(q3);
 
-        // Branch: q3BranchValue continues to Q4+Q5; anything else terminates.
+        // Branch: q3BranchValue continues to Q4 (then Q5); anything else terminates.
         if (q3 == q3BranchValue)
             ShowStage3();
         else
@@ -197,16 +200,29 @@ public class SurveyControl : MonoBehaviour
 
     private void HandleStage3()
     {
-        // Gate: both Q4 and Q5 must be answered.
-        if (!AnyTogglesOnInGroup(q4Group) || !AnyTogglesOnInGroup(q5Group)) return;
+        // Gate: Q4 must be answered.
+        if (!AnyTogglesOnInGroup(q4Group)) return;
 
         string q4 = GetToggleValue(q4Group);
-        string q5 = GetToggleValue(q5Group);
 
         // Record.
         surveyDataRecorder?.SetQ4(q4);
+
+        // No branching — Q4 always proceeds to Q5.
+        ShowStage4();
+    }
+
+    private void HandleStage4()
+    {
+        // Gate: Q5 must be answered.
+        if (!AnyTogglesOnInGroup(q5Group)) return;
+
+        string q5 = GetToggleValue(q5Group);
+
+        // Record.
         surveyDataRecorder?.SetQ5(q5);
 
+        // End of survey.
         CommitAndStep();
     }
 
@@ -242,9 +258,20 @@ public class SurveyControl : MonoBehaviour
         SetActive(q2Panel,        false);
         SetActive(q3Panel,        false);
         SetActive(q4Panel,        true);
+        SetActive(q5Panel,        false);
+        SetActive(continueButton, true);
+        _stage = SurveyStage.Stage3_Q4;
+    }
+
+    private void ShowStage4()
+    {
+        SetActive(q1Panel,        false);
+        SetActive(q2Panel,        false);
+        SetActive(q3Panel,        false);
+        SetActive(q4Panel,        false);
         SetActive(q5Panel,        true);
         SetActive(continueButton, true);
-        _stage = SurveyStage.Stage3_Q4Q5;
+        _stage = SurveyStage.Stage4_Q5;
     }
 
     private void HideAllPanels()
