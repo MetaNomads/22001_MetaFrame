@@ -7,13 +7,17 @@ using UnityEngine.UI;
 public class SurveyControl : MonoBehaviour
 {
     // =========================================================================
-    // Stage tracking — questions are asked sequentially with no branching.
+    // Stage tracking — questions are asked sequentially.
     //
     //   Idle         — no panels visible, survey not started
     //   Stage1_Q1Q2  — Q1 + Q2 + Continue
     //   Stage2_Q3    — Q3 + Continue
-    //   Stage3_Q4    — Q4 + Continue
-    //   Stage4_Q5    — Q5 + Continue   (last stage — Continue commits + steps)
+    //   Stage3_Q4    — Q4 + Continue   (skipped when Q1 == q1SkipValue && Q3 == q3SkipValue)
+    //   Stage4_Q5    — Q5 + Continue   (skipped when Q1 == q1SkipValue && Q3 == q3SkipValue)
+    //
+    // Skip rule: Q4 and Q5 are skipped together — only when BOTH Q1 matches
+    // q1SkipValue AND Q3 matches q3SkipValue. In every other combination, all
+    // five questions are asked.
     // =========================================================================
 
     private enum SurveyStage
@@ -26,6 +30,10 @@ public class SurveyControl : MonoBehaviour
     }
 
     private SurveyStage _stage = SurveyStage.Idle;
+
+    // Cached answer from Stage 1 — needed to evaluate the Q4/Q5 skip rule
+    // after Q3 is answered. Cleared at BeginSurvey().
+    private string _q1Answer;
 
     // =========================================================================
     // Inspector fields — Panels
@@ -49,6 +57,20 @@ public class SurveyControl : MonoBehaviour
     [SerializeField] private ToggleGroup q3Group;
     [SerializeField] private ToggleGroup q4Group;
     [SerializeField] private ToggleGroup q5Group;
+
+    // =========================================================================
+    // Inspector fields — Skip values
+    //
+    //   Q4 and Q5 are skipped together only when BOTH conditions match.
+    //   These strings must match the ToggleID.value on your toggle prefabs.
+    // =========================================================================
+
+    [Header("Skip Values (Q4 + Q5 skipped only when BOTH match)")]
+    [Tooltip("Q1 answer that participates in the Q4/Q5 skip rule. Default: \"no\".")]
+    [SerializeField] private string q1SkipValue = "no";
+
+    [Tooltip("Q3 answer that participates in the Q4/Q5 skip rule. Default: \"1\".")]
+    [SerializeField] private string q3SkipValue = "1";
 
     // =========================================================================
     // Inspector fields — References
@@ -119,6 +141,7 @@ public class SurveyControl : MonoBehaviour
     public void BeginSurvey()
     {
         ClearSelection();
+        _q1Answer = null;
         ShowStage1();
     }
 
@@ -155,11 +178,12 @@ public class SurveyControl : MonoBehaviour
         string q1 = GetToggleValue(q1Group);
         string q2 = GetToggleValue(q2Group);
 
-        // Record.
+        // Record + cache Q1 for the Stage 2 skip-rule check.
+        _q1Answer = q1;
         surveyDataRecorder?.SetQ1(q1);
         surveyDataRecorder?.SetQ2(q2);
 
-        // No branching — always proceeds to Q3 regardless of answer.
+        // Always advance to Q3 — the Q4/Q5 skip decision is made after Q3 is answered.
         ShowStage2();
     }
 
@@ -173,8 +197,13 @@ public class SurveyControl : MonoBehaviour
         // Record.
         surveyDataRecorder?.SetQ3(q3);
 
-        // No branching — Q3 always proceeds to Q4 regardless of answer.
-        ShowStage3();
+        // Skip rule: Q4 + Q5 are skipped together only when BOTH Q1 and Q3 match
+        // their skip values. Any other combination shows Q4 next.
+        bool skipQ4Q5 = _q1Answer == q1SkipValue && q3 == q3SkipValue;
+        if (skipQ4Q5)
+            CommitAndStep();
+        else
+            ShowStage3();
     }
 
     private void HandleStage3()
@@ -289,6 +318,7 @@ public class SurveyControl : MonoBehaviour
         // 3. Reset survey UI for the next trial.
         ClearSelection();
         HideAllPanels();
+        _q1Answer = null;
         _stage = SurveyStage.Idle;
     }
 
