@@ -13,11 +13,13 @@ public class SurveyControl : MonoBehaviour
     //   Stage1_Q1Q2  — Q1 + Q2 + Continue
     //   Stage2_Q3    — Q3 + Continue
     //   Stage3_Q4    — Q4 + Continue   (skipped when Q1 == q1SkipValue && Q3 == q3SkipValue)
-    //   Stage4_Q5    — Q5 + Continue   (skipped when Q1 == q1SkipValue && Q3 == q3SkipValue)
+    //   Stage4_Q5    — Q5 + Continue   (skipped when Q3 path is skipped, OR when Q4 is not in q4ShowQ5Values)
     //
-    // Skip rule: Q4 and Q5 are skipped together — only when BOTH Q1 matches
-    // q1SkipValue AND Q3 matches q3SkipValue. In every other combination, all
-    // five questions are asked.
+    // Skip rules:
+    //   • Q4 + Q5 are skipped together when BOTH Q1 matches q1SkipValue
+    //     AND Q3 matches q3SkipValue.
+    //   • When Q4 is shown, Q5 is shown only if Q4's answer is in q4ShowQ5Values
+    //     (default: "3", "4", "5"). Any other Q4 answer commits and steps.
     // =========================================================================
 
     private enum SurveyStage
@@ -71,6 +73,10 @@ public class SurveyControl : MonoBehaviour
 
     [Tooltip("Q3 answer that participates in the Q4/Q5 skip rule. Default: \"1\".")]
     [SerializeField] private string q3SkipValue = "1";
+
+    [Tooltip("Q4 answers that REVEAL Q5. Any Q4 answer outside this list commits + steps.\n" +
+             "Default: \"3\", \"4\", \"5\".")]
+    [SerializeField] private string[] q4ShowQ5Values = new[] { "3", "4", "5" };
 
     // =========================================================================
     // Inspector fields — References
@@ -216,8 +222,12 @@ public class SurveyControl : MonoBehaviour
         // Record.
         surveyDataRecorder?.SetQ4(q4);
 
-        // No branching — Q4 always proceeds to Q5.
-        ShowStage4();
+        // Gate: Q5 is shown only when Q4's answer is in q4ShowQ5Values.
+        bool showQ5 = System.Array.IndexOf(q4ShowQ5Values, q4) >= 0;
+        if (showQ5)
+            ShowStage4();
+        else
+            CommitAndStep();
     }
 
     private void HandleStage4()
