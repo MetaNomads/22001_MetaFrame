@@ -68,8 +68,8 @@ public class SurveyControl : MonoBehaviour
     // =========================================================================
 
     [Header("Skip Values (Q4 + Q5 skipped only when BOTH match)")]
-    [Tooltip("Q1 answer that participates in the Q4/Q5 skip rule. Default: \"no\".")]
-    [SerializeField] private string q1SkipValue = "No";
+    [Tooltip("Q1 answer that participates in the Q4/Q5 skip rule. Default: \"0\".")]
+    [SerializeField] private string q1SkipValue = "0";
 
     [Tooltip("Q3 answer that participates in the Q4/Q5 skip rule. Default: \"1\".")]
     [SerializeField] private string q3SkipValue = "1";
