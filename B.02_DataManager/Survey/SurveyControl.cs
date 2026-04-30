@@ -7,13 +7,13 @@ using UnityEngine.UI;
 public class SurveyControl : MonoBehaviour
 {
     // =========================================================================
-    // Stage tracking
+    // Stage tracking — questions are asked sequentially with no branching.
     //
     //   Idle         — no panels visible, survey not started
-    //   Stage1_Q1Q2  — Q1 + Q2 + Continue visible
-    //   Stage2_Q3    — Q3 + Continue visible (only reached if Q1 != q1EndValue)
-    //   Stage3_Q4    — Q4 alone + Continue visible (always follows Stage2_Q3)
-    //   Stage4_Q5    — Q5 alone + Continue visible (always follows Stage3_Q4)
+    //   Stage1_Q1Q2  — Q1 + Q2 + Continue
+    //   Stage2_Q3    — Q3 + Continue
+    //   Stage3_Q4    — Q4 + Continue
+    //   Stage4_Q5    — Q5 + Continue   (last stage — Continue commits + steps)
     // =========================================================================
 
     private enum SurveyStage
@@ -49,17 +49,6 @@ public class SurveyControl : MonoBehaviour
     [SerializeField] private ToggleGroup q3Group;
     [SerializeField] private ToggleGroup q4Group;
     [SerializeField] private ToggleGroup q5Group;
-
-    // =========================================================================
-    // Inspector fields — Branch values
-    //
-    //   These must match the ToggleID.value strings on your toggle prefabs.
-    // =========================================================================
-
-    [Header("Branch Values")]
-    [Tooltip("Q1 ToggleID value that ENDS the survey (no follow-up questions).\n" +
-             "Any other value continues into Q3 → Q4 → Q5.")]
-    [SerializeField] private string q1EndValue = "no";
 
     // =========================================================================
     // Inspector fields — References
@@ -170,11 +159,8 @@ public class SurveyControl : MonoBehaviour
         surveyDataRecorder?.SetQ1(q1);
         surveyDataRecorder?.SetQ2(q2);
 
-        // Branch: q1EndValue terminates the survey; anything else continues to Q3.
-        if (q1 == q1EndValue)
-            CommitAndStep();
-        else
-            ShowStage2();
+        // No branching — always proceeds to Q3 regardless of answer.
+        ShowStage2();
     }
 
     private void HandleStage2()
