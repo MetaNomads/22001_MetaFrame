@@ -23,10 +23,13 @@ namespace MetaFrame.Interaction.GazeInteraction
         public UnityEvent OnGazeActivated; //the moment when gaze is finished
         public UnityEvent<bool> OnGazeToggle; //On when raycast hits the object, Off when raycast leaves the object
 
+        // FIX (T2-2): guard the collider access. The Awake-time check that throws
+        // is wrapped in `#if UNITY_EDITOR || DEVELOPMENT_BUILD`, so a stripped
+        // production build with a missing Collider would silently NRE here.
         public bool IsEnabled
         {
-            get { return _collider.enabled; }
-            set { _collider.enabled = value; }
+            get { return _collider != null && _collider.enabled; }
+            set { if (_collider != null) _collider.enabled = value; }
         }
 
         public bool IsActivable
@@ -47,6 +50,17 @@ namespace MetaFrame.Interaction.GazeInteraction
             #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 if(_collider == null) { throw new System.Exception("Missing Collider"); }
             #endif
+        }
+
+        // FIX (T2-2): Editor-time validation so a missing Collider surfaces in the
+        // Inspector with a yellow warning before Play Mode, not as a stripped-build NRE.
+        private void OnValidate()
+        {
+            if (gameObject.GetComponent<Collider>() == null)
+                Debug.LogWarning(
+                    $"[GazeInteractable:{name}] No Collider on this GameObject. " +
+                    "GazeInteractable requires one — IsEnabled get/set will silently no-op.",
+                    this);
         }
 
         private void Start()

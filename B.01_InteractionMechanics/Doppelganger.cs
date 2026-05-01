@@ -29,6 +29,12 @@ public class Doppelganger : MonoBehaviour
     private GameObject _instance;
     private System.Action _onComplete;
 
+    // FIX (T2-6): guard against rapid double Spawn() calls. Two coroutines
+    // running in parallel would Instantiate two duplicates and one would
+    // overwrite _instance, leaving the other orphaned (still in scene, but
+    // no reference to Destroy it later).
+    private bool _spawning;
+
     [Space]
     [Tooltip("Fires after the deferred spawn completes — use this to chain actions that depend on the spawn.")]
     [SerializeField] public UnityEvent OnSpawned;
@@ -36,11 +42,27 @@ public class Doppelganger : MonoBehaviour
     [Tooltip("Fires when the doppelganger is destroyed.")]
     [SerializeField] public UnityEvent OnDestroyed;
 
-    public void Spawn() { Debug.Log("[Doppelganger] Spawn() called."); StartCoroutine(DoSpawn()); }
+    public void Spawn()
+    {
+        // FIX (T2-6): refuse a second Spawn while the first is still in flight.
+        if (_spawning)
+        {
+            Debug.LogWarning("[Doppelganger] Spawn() called while a previous Spawn is still in progress — ignored.", this);
+            return;
+        }
+        if (_instance != null)
+        {
+            Debug.LogWarning("[Doppelganger] Spawn() called but a doppelganger already exists. Call Destroy() first — ignored.", this);
+            return;
+        }
+        Debug.Log("[Doppelganger] Spawn() called.");
+        _spawning = true;
+        StartCoroutine(DoSpawn());
+    }
 
     private IEnumerator DoSpawn()
     {
-        if (source == null) yield break;
+        if (source == null) { _spawning = false; yield break; }
         yield return null;
 
         Vector3    spawnPos = useSpawnPoint && spawnPoint != null ? spawnPoint.position : source.transform.position;
@@ -86,6 +108,9 @@ public class Doppelganger : MonoBehaviour
         var cb = _onComplete;
         _onComplete = null;
         cb?.Invoke();
+
+        // FIX (T2-6): release the re-entrancy lock now that DoSpawn finished.
+        _spawning = false;
     }
 
     // Searches all descendants recursively by name

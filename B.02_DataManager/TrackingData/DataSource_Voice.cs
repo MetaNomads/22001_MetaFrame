@@ -47,10 +47,14 @@ namespace MetaFrame.Data
         /// Voice does not participate in the per-frame CollectData pipeline.
         /// It manages its own Voice.json with one entry per segment.
         /// </summary>
-        public override void Initialize(DataManager manager)
+        // FIX (D-4): override the new RegisterWithManager hook instead of the
+        // entire Initialize() method. This lets the base class handle dataManager
+        // assignment AND SourceNameLower caching (used by diagnostics / LSL),
+        // while Voice cleanly opts out of the per-frame pipeline registration.
+        protected override void RegisterWithManager(DataManager manager)
         {
-            dataManager = manager;
-            // Intentionally not calling manager.RegisterDataSource(this)
+            // Intentionally not calling manager.RegisterDataSource(this) —
+            // Voice writes its own files and would just inflate _dataSources.
         }
 
         /// <summary>

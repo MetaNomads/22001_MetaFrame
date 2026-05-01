@@ -25,7 +25,11 @@ namespace MetaFrame.Data
         {
             var data = new Dictionary<string, object>();
 
-            if (_fullBodySkeleton.IsDataValid)
+            // FIX (D-2): null-guard on _fullBodySkeleton. Inspector ref might be
+            // missing or the OVRSkeleton component might be temporarily absent
+            // (e.g. swapped at runtime). The recorder catches NREs but logs spam
+            // every tick and silently drops body data for the rest of the session.
+            if (_fullBodySkeleton != null && _fullBodySkeleton.IsDataValid)
             {
                 // Upper Core bones
                 if (RecordConfig.UpperCore)

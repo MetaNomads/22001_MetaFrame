@@ -44,15 +44,21 @@ namespace MetaFrame.Interaction.GazeInteraction
 
         public void SetTarget(RaycastHit hit)
         {
+            // FIX (T2-4): guard against SetTarget being called before SetInteractor.
+            // Previous code NRE'd on _interactor.transform.position. Returning
+            // silently is the right behaviour here — the reticle simply won't
+            // update until the interactor is wired.
+            if (_interactor == null) return;
+
             var distance = Vector3.Distance(_interactor.transform.position, hit.point);
             var scale = distance * _scale;
             scale = Mathf.Clamp(scale, _scale, scale);
 
             var direction = _interactor.transform.position - hit.point;
             var rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-            var position = hit.point + direction * _offsetFromHit;       
+            var position = hit.point + direction * _offsetFromHit;
 
-            _canvas.transform.localScale = Vector3.one * scale;
+            if (_canvas != null) _canvas.transform.localScale = Vector3.one * scale;
             transform.SetPositionAndRotation(position, rotation);
         }
         public void SetProgress(float progress)

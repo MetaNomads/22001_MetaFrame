@@ -11,6 +11,22 @@ public class RandomAudioPause : MonoBehaviour
 
     void Start()
     {
+        // FIX (T3-1): null-guard. Without these, a missing audioSource ref (or a
+        // clip-less AudioSource) would NRE on Start or inside the coroutine and
+        // silently break the ambient soundscape for the rest of the scene.
+        if (audioSource == null)
+        {
+            Debug.LogError($"[RandomAudioPause:{name}] audioSource not assigned. Disabling component.", this);
+            enabled = false;
+            return;
+        }
+        if (audioSource.clip == null)
+        {
+            Debug.LogError($"[RandomAudioPause:{name}] audioSource has no clip. Disabling component.", this);
+            enabled = false;
+            return;
+        }
+
         // Start the audio if it's not already playing
         if (!audioSource.isPlaying)
         {
@@ -25,6 +41,8 @@ public class RandomAudioPause : MonoBehaviour
     {
         while (true)
         {
+            // Defensive — clip could become null mid-scene if reassigned.
+            if (audioSource == null || audioSource.clip == null) yield break;
             // Wait for a random amount of time before pausing
             yield return new WaitForSeconds(Random.Range(0, audioSource.clip.length));
 

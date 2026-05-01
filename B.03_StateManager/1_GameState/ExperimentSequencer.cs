@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using MetaFrame.Contracts;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -156,6 +157,17 @@ namespace MetaFrame.State
         /// </summary>
         public bool Advance()
         {
+            // CONTRACT: precondition — gsm must be assigned. The OnValidate
+            // hook surfaces this in the Editor; this catches it at runtime.
+            Contract.Require(gsm != null, "Advance called with null gsm", this);
+            if (gsm == null) return false;
+
+            // INVARIANT: indices are non-negative.
+            Contract.Invariant(_sessionIndex >= 0,
+                $"_sessionIndex went negative ({_sessionIndex})", this);
+            Contract.Invariant(_trialIndex >= 0,
+                $"_trialIndex went negative ({_trialIndex})", this);
+
             var current = gsm.CurrentStateDefinition;
 
             if (current == stateExperimentStart || current == stateIdle)
@@ -188,34 +200,56 @@ namespace MetaFrame.State
                 {
                     // Session complete → session_end
                     if (!gsm.RequestTransition(stateSessionEnd)) return false;
-                    OnSessionEnded?.Invoke();
+
+                    // FIX (S-1, S-6): snapshot BOTH indices before mutation, and
+                    // defer firing OnSessionEnded / OnExperimentEnded until after
+                    // the post-end transition (idle / experiment_end) is validated.
+                    //
+                    // The previous code:
+                    //   1. fired OnSessionEnded
+                    //   2. mutated _sessionIndex AND _trialIndex
+                    //   3. attempted the post-end transition
+                    //   4. on failure, rolled back _sessionIndex but NOT _trialIndex
+                    //
+                    // That left two failure modes:
+                    //   - subscribers (e.g. ExperimentDataRecorder) committed a
+                    //     "session ended" record for a session that, from the GSM's
+                    //     point of view, never actually ended;
+                    //   - _trialIndex == 0 with the rolled-back _sessionIndex meant
+                    //     the next Advance() would behave as if Trial 1 was just
+                    //     starting in the previous session.
+                    //
+                    // Now: we mutate, attempt the post-end transition, and only
+                    // commit the events if the transition succeeded. On failure,
+                    // both indices are restored to their pre-mutation values.
+
+                    int prevSessionIndex = _sessionIndex;
+                    int prevTrialIndex   = _trialIndex;
+
                     _sessionIndex++;
                     _trialIndex = 0;
 
-                    if (_sessionIndex < resolvedSequences.Count)
+                    bool isExperimentEnd = _sessionIndex >= resolvedSequences.Count;
+                    bool postEndOk       = isExperimentEnd
+                        ? gsm.RequestTransition(stateExperimentEnd)
+                        : gsm.RequestTransition(stateIdle);
+
+                    if (!postEndOk)
                     {
-                        // More sessions → idle
-                        if (!gsm.RequestTransition(stateIdle))
-                        {
-                            _sessionIndex--;
-                            Debug.LogError("[Sequencer] Failed to transition to idle — session index rolled back.");
-                            return false;
-                        }
+                        _sessionIndex = prevSessionIndex;
+                        _trialIndex   = prevTrialIndex;
+                        Debug.LogError(
+                            $"[Sequencer] Failed to transition out of session_end → " +
+                            $"{(isExperimentEnd ? "experiment_end" : "idle")} — " +
+                            "session and trial indices rolled back. " +
+                            "OnSessionEnded was NOT fired.");
+                        return false;
                     }
-                    else
-                    {
-                        // All sessions done → experiment_end
-                        if (!gsm.RequestTransition(stateExperimentEnd))
-                        {
-                            _sessionIndex--;
-                            Debug.LogError("[Sequencer] Failed to transition to experiment_end — session index rolled back.");
-                            return false;
-                        }
-                        else
-                        {
-                            OnExperimentEnded?.Invoke();
-                        }
-                    }
+
+                    // Both GSM transitions succeeded. Fire sequencer-level events.
+                    OnSessionEnded?.Invoke();
+                    if (isExperimentEnd)
+                        OnExperimentEnded?.Invoke();
                 }
             }
 
@@ -383,6 +417,22 @@ namespace MetaFrame.State
         private void Awake()
         {
             instance = this;
+        }
+
+        // ── Validation (CONTRACT) ─────────────────────────────────────────────
+        private void OnValidate()
+        {
+            if (gsm == null)
+                Debug.LogWarning($"[Sequencer:{name}] No GameStateManager assigned.", this);
+
+            // Warn on missing required state definition refs — these power Advance().
+            if (stateExperimentStart == null) Debug.LogWarning($"[Sequencer:{name}] stateExperimentStart unassigned.", this);
+            if (stateSessionStart    == null) Debug.LogWarning($"[Sequencer:{name}] stateSessionStart unassigned.",    this);
+            if (stateSessionEnd      == null) Debug.LogWarning($"[Sequencer:{name}] stateSessionEnd unassigned.",      this);
+            if (stateTrialStart      == null) Debug.LogWarning($"[Sequencer:{name}] stateTrialStart unassigned.",      this);
+            if (stateTrialEnd        == null) Debug.LogWarning($"[Sequencer:{name}] stateTrialEnd unassigned.",        this);
+            if (stateIdle            == null) Debug.LogWarning($"[Sequencer:{name}] stateIdle unassigned.",            this);
+            if (stateExperimentEnd   == null) Debug.LogWarning($"[Sequencer:{name}] stateExperimentEnd unassigned.",   this);
         }
 
         private void OnDestroy()

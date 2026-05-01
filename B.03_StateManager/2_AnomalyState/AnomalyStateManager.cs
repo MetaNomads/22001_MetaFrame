@@ -3,6 +3,7 @@ using UnityEngine.Events;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MetaFrame.Contracts;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -169,7 +170,7 @@ namespace MetaFrame.State
 
     // ── AnomalyStateManager ───────────────────────────────────────────────────────
 
-    public class AnomalyStateManager : MonoBehaviour
+    public class AnomalyStateManager : MonoBehaviour, ISelfHealing
     {
         [SerializeField] protected AnomalyDefinition anomalyToTrigger;
 
@@ -264,9 +265,27 @@ namespace MetaFrame.State
 
         private void OnEnable()
         {
+            // FIX (S-4): null-guard. If script execution order or scene state
+            // puts an ASM before the GSM's Awake runs, GameStateManager.instance
+            // is null here. The previous code threw NRE and silently left the
+            // ASM permanently unsubscribed for the rest of the session — a
+            // determinism violation that affects research data integrity.
+            // Now we log loudly and still register so OnRegistered fires.
             var gsm = GameStateManager.instance;
 
-            gsm.OnStateChanged += OnStateChanged;
+            if (gsm != null)
+            {
+                gsm.OnStateChanged += OnStateChanged;
+            }
+            else
+            {
+                Debug.LogWarning(
+                    $"[ASM:{name}] GameStateManager.instance was null in OnEnable — " +
+                    "OnStateChanged subscription skipped. This ASM will not respond to " +
+                    "GSM transitions. Ensure GameStateManager has a lower script execution " +
+                    "order or that it Awakes before this object becomes enabled.");
+            }
+
             _allAsms.Add(this);
             OnRegistered?.Invoke(this);
             SyncState();
@@ -283,6 +302,80 @@ namespace MetaFrame.State
         }
 
         private void OnDestroy() { }  // OnDisable always runs before OnDestroy — cleanup handled there
+
+        // ── Validation (CONTRACT) ─────────────────────────────────────────────
+        private void OnValidate()
+        {
+            if (anomalyToTrigger == null)
+                Debug.LogWarning(
+                    $"[ASM:{name}] anomalyToTrigger is unassigned. This ASM " +
+                    "will never activate (BroadcastTrialBegan only matches when the " +
+                    "trial's anomaly == anomalyToTrigger).", this);
+
+            if (triggers == null) return;
+            for (int i = 0; i < triggers.Count; i++)
+            {
+                var t = triggers[i];
+                if (t == null) continue;
+                if (t.conditions == null) continue;
+                for (int c = 0; c < t.conditions.Count; c++)
+                {
+                    var entry = t.conditions[c];
+                    if (entry?.script != null && entry.script is not IAnomalyCondition)
+                        Debug.LogWarning(
+                            $"[ASM:{name}] Trigger {i} condition {c}: '{entry.script.GetType().Name}' " +
+                            "does not implement IAnomalyCondition; it will be ignored at runtime.", this);
+                }
+            }
+        }
+
+        // ── Self-heal (ISelfHealing) ─────────────────────────────────────────
+        public string SelfHealLabel => name;
+
+        /// <summary>
+        /// Reconciles internal state that can drift if AnomalyAction subclasses
+        /// fail to call CompleteAnomalyAction(), or if an action is destroyed
+        /// without unregistering. Returns true if any repair was made.
+        /// </summary>
+        public bool RunSelfHeal()
+        {
+            bool healed = false;
+
+            // Drift case: _activeActions contains nulls (destroyed monobehaviour
+            // references). Strip them and reconcile _pendingActions.
+            int nullsRemoved = _activeActions.RemoveWhere(a => a == null);
+            if (nullsRemoved > 0)
+            {
+                Contract.Healed(
+                    () => false, // we already detected drift
+                    () => _pendingActions = _activeActions.Count,
+                    $"removed {nullsRemoved} destroyed AnomalyAction(s); reset _pendingActions to {_activeActions.Count}",
+                    this);
+                healed = true;
+            }
+
+            // Drift case: _pendingActions counter does not match _activeActions.Count.
+            // This happens when CompleteAnomalyAction is called twice or skipped.
+            healed |= !Contract.Healed(
+                () => _pendingActions == _activeActions.Count,
+                () => _pendingActions = _activeActions.Count,
+                $"_pendingActions ({_pendingActions}) drifted from _activeActions.Count ({_activeActions.Count})",
+                this);
+
+            // Drift case: stuck in Triggered with zero pending and no actions —
+            // means SetAnomalyState should have advanced to Completed but didn't.
+            if (_currentAnomalyState == AnomalyState.Triggered && _pendingActions == 0 && _activeActions.Count == 0)
+            {
+                Contract.Healed(
+                    () => false,
+                    () => SetAnomalyState(AnomalyState.Completed),
+                    "stuck in Triggered with no pending actions; advanced to Completed",
+                    this);
+                healed = true;
+            }
+
+            return healed;
+        }
 
         // ── Trial Activation ───────────────────────────────────────────────────
 
@@ -355,24 +448,78 @@ namespace MetaFrame.State
             EvaluateTriggers();
         }
 
+        // FIX (S-2): switch from interleaved evaluate-then-invoke to
+        // snapshot-then-invoke (transactional semantics).
+        //
+        // Why the change:
+        //   The previous loop computed (passes, wasActive) for trigger[i],
+        //   committed _enteredTriggers, and invoked the UnityEvent — all
+        //   inline before moving to trigger[i+1]. If trigger[i].onEnter
+        //   cascaded back into SetAnomalyState → EvaluateTriggers (via
+        //   AnomalyStateManager.TriggerAnomaly listeners, which the project
+        //   does wire up), the inner pass would re-enter this method with a
+        //   mutated _enteredTriggers AND mutated trigger evaluation state.
+        //   The outer pass would then continue iterating with no awareness
+        //   that decisions for triggers[i+1..n] might have changed underneath.
+        //
+        // The new code:
+        //   1. Compute all enter/exit decisions for THIS call's snapshot of
+        //      _currentStateIndex / _currentAnomalyState.
+        //   2. Commit all _enteredTriggers mutations.
+        //   3. Invoke UnityEvents from the local plan.
+        //
+        //   A re-entrant call gets its own fresh local plan and operates on
+        //   the already-committed _enteredTriggers, so neither call's
+        //   iteration corrupts the other's.
+        //
+        // Behavior change to be aware of:
+        //   The OLD behavior, by accident, gave cascading state-changes the
+        //   chance to influence later triggers' evaluations within the same
+        //   call. The NEW behavior is transactional: each EvaluateTriggers
+        //   call commits the decision set it computed at entry, even if a
+        //   re-entrant cascade later changes the underlying state. If a
+        //   cascade is meant to affect more triggers, the cascade itself
+        //   will re-enter EvaluateTriggers and the second pass will pick up
+        //   those new decisions. Net result is the same in steady state;
+        //   the difference is observable only mid-cascade and only if a
+        //   listener is sensitive to the firing order.
+        //
+        // Allocation:
+        //   `plan` is allocated per call. EvaluateTriggers fires on GSM and
+        //   anomaly state changes — order of 10s of times per trial — so
+        //   the cost is negligible.
         private void EvaluateTriggers()
         {
+            var plan = new System.Collections.Generic.List<(int idx, bool enter)>();
+
             for (int i = 0; i < triggers.Count; i++)
             {
-                var trigger = triggers[i];
-                bool passes = trigger.Evaluate(_currentStateIndex, _currentAnomalyState);
+                var trigger    = triggers[i];
+                bool passes    = trigger.Evaluate(_currentStateIndex, _currentAnomalyState);
                 bool wasActive = _enteredTriggers.Contains(i);
 
                 if (passes && !wasActive)
                 {
                     _enteredTriggers.Add(i);
-                    trigger.onEnter?.Invoke();
+                    plan.Add((i, true));
                 }
                 else if (!passes && wasActive)
                 {
                     _enteredTriggers.Remove(i);
-                    trigger.onExit?.Invoke();
+                    plan.Add((i, false));
                 }
+            }
+
+            // Invoke UnityEvents from the local plan. A re-entrant call gets
+            // its own plan list and its own fully-committed _enteredTriggers,
+            // so it cannot corrupt this iteration.
+            for (int p = 0; p < plan.Count; p++)
+            {
+                var (idx, enter) = plan[p];
+                if (idx >= triggers.Count) continue;  // defense: triggers list mutated
+                var t = triggers[idx];
+                if (enter) t.onEnter?.Invoke();
+                else       t.onExit?.Invoke();
             }
         }
 
@@ -381,8 +528,16 @@ namespace MetaFrame.State
         /// <summary>Register an async action before Execute(). One-shots should not call this.</summary>
         public void RegisterAction(AnomalyAction action)
         {
+            // CONTRACT: precondition — action must not be null.
+            Contract.Require(action != null, "RegisterAction with null action", this);
+            if (action == null) return;
+
             if (_activeActions.Add(action))
                 _pendingActions++;
+
+            // INVARIANT: counter always matches set size after a registration.
+            Contract.Invariant(_pendingActions == _activeActions.Count,
+                $"RegisterAction left _pendingActions ({_pendingActions}) != Count ({_activeActions.Count})", this);
         }
 
         /// <summary>Signal that an async action has finished.</summary>
@@ -390,6 +545,11 @@ namespace MetaFrame.State
         {
             if (!_activeActions.Remove(action)) return;
             _pendingActions = Mathf.Max(0, _pendingActions - 1);
+
+            // INVARIANT: counter always matches set size after a completion.
+            Contract.Invariant(_pendingActions == _activeActions.Count,
+                $"CompleteAnomaly left _pendingActions ({_pendingActions}) != Count ({_activeActions.Count})", this);
+
             if (_pendingActions == 0 && _currentAnomalyState == AnomalyState.Triggered)
                 SetAnomalyState(AnomalyState.Completed);
         }

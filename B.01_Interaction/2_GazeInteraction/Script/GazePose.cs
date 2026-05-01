@@ -144,6 +144,25 @@ namespace MetaFrame.Interaction
             RenderPipelineManager.endCameraRendering -= OnEndCamera;
         }
 
+        // FIX (T2-3): destroy the per-LineRenderer Materials we created in
+        // CreateLineRenderer. Each Awake() allocated three fresh Materials via
+        // `new Material(Shader.Find("Sprites/Default"))` and they were never
+        // released — leaking three per scene load.
+        void OnDestroy()
+        {
+            DestroyLineMaterial(_centerLine);
+            DestroyLineMaterial(_headLine);
+            DestroyLineMaterial(_chestLine);
+        }
+
+        private static void DestroyLineMaterial(LineRenderer lr)
+        {
+            if (lr == null) return;
+            // Use .material (instance), not .sharedMaterial — that's what we created.
+            var m = lr.material;
+            if (m != null) Destroy(m);
+        }
+
         void LateUpdate()
         {
             CenterGaze?.UpdatePose();

@@ -26,6 +26,11 @@ public class RandomWaitLoop : MonoBehaviour
     {
         while (true)
         {
+            // FIX (T3-2): clip-null guard. The Start() check covers `audioSource`
+            // but not `audioSource.clip`. A clip-less AudioSource that becomes
+            // playing somehow (or a clip nulled mid-scene) would NRE on .clip.length.
+            if (audioSource == null || audioSource.clip == null) { yield return null; continue; }
+
             // Check if audio is playing
             if (audioSource.isPlaying)
             {
@@ -36,7 +41,7 @@ public class RandomWaitLoop : MonoBehaviour
                 yield return new WaitForSeconds(randomWaitTime);
 
                 // Check again if audio is still playing
-                if (audioSource.isPlaying)
+                if (audioSource.isPlaying && audioSource.clip != null)
                 {
                     // Set a random start time within the audio clip length
                     randomStartTime = Random.Range(0f, audioSource.clip.length);

@@ -21,11 +21,19 @@ namespace FS_OfficePack
 
 	private void Start() {
 		_lt = GetComponent<Light>();
+		// FIX (T3-4): null-guard. No [RequireComponent(typeof(Light))] enforces
+		// the dependency, so a misconfigured GameObject would NRE on .intensity.
+		if (_lt == null) {
+			Debug.LogError($"[LightFlicker:{name}] No Light component on this GameObject. Disabling.", this);
+			enabled = false;
+			return;
+		}
 		_lastIntensity = _lt.intensity;
 		FixedUpdate();
 	}
 
 	private void FixedUpdate() {
+		if (_lt == null) return;
 		_timePassed += Time.deltaTime;
 		_lt.intensity = Mathf.Lerp(_lastIntensity, _targetIntensity, _timePassed/AccelerateTime);
 

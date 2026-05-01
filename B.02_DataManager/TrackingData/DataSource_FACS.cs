@@ -21,7 +21,12 @@ namespace MetaFrame.Data
         {
             var data = new Dictionary<string, object>();
 
-            if (_faceExpressions.ValidExpressions)
+            // FIX (D-3): null-guard on _faceExpressions. If the Inspector reference
+            // is missing, the previous code threw NRE on every CollectData call. The
+            // recorder's outer try/catch suppresses the exception but logs spam
+            // every recording tick (100Hz) and silently disables FACS data for the
+            // entire session — a research-validity hazard.
+            if (_faceExpressions != null && _faceExpressions.ValidExpressions)
             {
                 // FIX: All AU entries previously used anonymous objects:
                 //   new { InnerBrowRaiserL = au1.InnerBrowRaiserL, InnerBrowRaiserR = au1.InnerBrowRaiserR }
@@ -217,7 +222,13 @@ namespace MetaFrame.Data
                     data["AU36_TongueOut"] = _faceExpressions.GetWeight(FaceExpression.TongueOut);
             }
 
-            if (dataManager.Body._fullBodySkeleton.IsDataValid)
+            // FIX (D-1): null-guard the chain. Previously this NRE'd if either
+            // dataManager.Body or _fullBodySkeleton was null (Inspector ref missing
+            // OR Body source not enabled in the build). Spam-logged via the
+            // recorder's outer try/catch and silently dropped head-AU data.
+            if (dataManager?.Body != null
+                && dataManager.Body._fullBodySkeleton != null
+                && dataManager.Body._fullBodySkeleton.IsDataValid)
             {
                 // Head Movement AUs
                 if (RecordConfig.AU51_TurnLeft)  data["AU51_TurnLeft"]  = Data.AU51_TurnLeft;

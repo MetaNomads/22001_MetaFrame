@@ -33,7 +33,9 @@ namespace MetaNomads.Interaction
             // hand grab
             if (HandGrab_L_toggle && HandGrab_L != null) {HandGrab_Left = new Interactor(HandGrab_L_toggle, HandGrab_L); HandGrab_Left.Set();}
             // hand grab use
-            if (HandGrabUse_L_toggle !&& HandGrabUse_L != null) {HandGrabUse_Left = new Interactor(HandGrabUse_L_toggle, HandGrabUse_L); HandGrabUse_Left.Set();}
+            // FIX (T2-1): was `!&&` — invalid C# syntax that should never have compiled.
+            // Pattern matches every other line in this method: X_toggle && Y != null.
+            if (HandGrabUse_L_toggle && HandGrabUse_L != null) {HandGrabUse_Left = new Interactor(HandGrabUse_L_toggle, HandGrabUse_L); HandGrabUse_Left.Set();}
             // hand ray
             if (DistanceHandGrab_L_toggle && DistanceHandGrab_L != null) {DistanceHandGrab_Left = new Interactor(DistanceHandGrab_L_toggle, DistanceHandGrab_L); DistanceHandGrab_Left.Set();}
             // hand ray

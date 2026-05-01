@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using MetaFrame.Contracts;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -51,6 +52,15 @@ namespace MetaFrame.State
 
         private int _currentIndex = -1;
 
+        // FIX (S-3): re-entrancy guard. Slot onEnter/onExit UnityEvents can fire
+        // listeners that themselves call RequestTransition / ForceState. Without
+        // this guard, the inner transition mutates _currentIndex and fires its
+        // own OnStateChanged before the outer ApplyTransition has finished —
+        // when control returns to the outer call, it then fires OnStateChanged
+        // again with stale (fromIndex, toIndex), and any state-tracker listening
+        // (AnomalyStateManager, ExperimentDataRecorder) sees a ghost transition.
+        private bool _inApplyTransition;
+
         // ── Public Accessors ───────────────────────────────────────────────────────
 
         public int               CurrentStateIndex      => _currentIndex;
@@ -78,6 +88,33 @@ namespace MetaFrame.State
                 return;
             }
             instance = this;
+        }
+
+        // ── Validation (CONTRACT) ─────────────────────────────────────────────────
+        // OnValidate runs in the Editor whenever a serialized field changes.
+        // Use it to surface configuration mistakes before Play Mode.
+
+        private void OnValidate()
+        {
+            if (slots == null) return;
+
+            // Warn on duplicate StateDefinition assignments.
+            var seen = new HashSet<StateDefinition>();
+            for (int i = 0; i < slots.Count; i++)
+            {
+                var d = slots[i]?.definition;
+                if (d == null) continue;
+                if (!seen.Add(d))
+                    Debug.LogWarning(
+                        $"[GSM:{name}] Duplicate StateDefinition '{d.displayName}' at slot {i}. " +
+                        "RequestTransition will resolve only the first match.", this);
+            }
+
+            // Warn if idleState isn't one of the slots.
+            if (idleState != null && IndexOf(idleState) < 0)
+                Debug.LogWarning(
+                    $"[GSM:{name}] idleState '{idleState.displayName}' is not present in slots. " +
+                    "ResetToIdleState will fall back to slot 0.", this);
         }
 
         private void Start()
@@ -170,16 +207,46 @@ namespace MetaFrame.State
 
         private void ApplyTransition(int toIndex)
         {
-            int      fromIndex = _currentIndex;
-            DateTime now       = DateTime.Now;
+            // FIX (S-3): refuse re-entrant transitions triggered from inside an
+            // onEnter/onExit UnityEvent. Allowing them would fire OnStateChanged
+            // twice with overlapping/stale (from,to) pairs; observers cannot
+            // reconstruct the actual sequence of states from such a stream.
+            if (_inApplyTransition)
+            {
+                Debug.LogWarning(
+                    $"[GSM] Re-entrant transition request to '{StateName(toIndex)}' " +
+                    $"from inside onEnter/onExit of '{StateName(_currentIndex)}' — IGNORED. " +
+                    "Move the transition into a coroutine, an end-of-frame call, or a " +
+                    "deferred event so the outer transition can complete first.");
+                return;
+            }
 
-            SlotAt(fromIndex)?.onExit?.Invoke();
+            // CONTRACT: precondition — toIndex must be a valid slot.
+            Contract.Require(IsValidIndex(toIndex),
+                $"ApplyTransition called with invalid index {toIndex}", this);
 
-            _currentIndex = toIndex;
-            slots[toIndex].onEnter?.Invoke();
+            _inApplyTransition = true;
+            try
+            {
+                int      fromIndex = _currentIndex;
+                DateTime now       = DateTime.Now;
 
-            OnStateChanged?.Invoke(fromIndex, toIndex, now);
-            Debug.Log($"[GSM] {StateName(fromIndex)} → {StateName(toIndex)}");
+                SlotAt(fromIndex)?.onExit?.Invoke();
+
+                _currentIndex = toIndex;
+                slots[toIndex].onEnter?.Invoke();
+
+                OnStateChanged?.Invoke(fromIndex, toIndex, now);
+                Debug.Log($"[GSM] {StateName(fromIndex)} → {StateName(toIndex)}");
+            }
+            finally
+            {
+                _inApplyTransition = false;
+            }
+
+            // CONTRACT: postcondition — _currentIndex must point to a valid slot.
+            Contract.Ensure(IsValidIndex(_currentIndex),
+                $"ApplyTransition left _currentIndex invalid ({_currentIndex})", this);
         }
 
         // ── Helpers ────────────────────────────────────────────────────────────────

@@ -8,7 +8,9 @@ namespace MetaFrame.ArchInteraction
     public class SpaceInteractableState : MonoBehaviour
     {
         [Tooltip("The colliders used as the trigger areas.")]
-        public List<Collider> triggerColliders;
+        // FIX (T3-3): default-initialise so a freshly-added component doesn't
+        // expose a null List that NREs in OnTriggerEnter/Exit.
+        public List<Collider> triggerColliders = new List<Collider>();
 
         [SerializeField] private UnityEvent whenEnter;
         [SerializeField] private UnityEvent whenLeave;
@@ -18,6 +20,9 @@ namespace MetaFrame.ArchInteraction
 
         private void OnTriggerEnter(Collider other)
         {
+            // FIX (T3-3): defensive — even with the field default, an Inspector
+            // user can clear the list to null. Bail out instead of NRE'ing.
+            if (triggerColliders == null) return;
             if (triggerColliders.Contains(other))
             {
                 collidersInSpace.Add(other);
@@ -32,6 +37,7 @@ namespace MetaFrame.ArchInteraction
 
         private void OnTriggerExit(Collider other)
         {
+            if (triggerColliders == null) return;
             if (triggerColliders.Contains(other))
             {
                 collidersInSpace.Remove(other);

@@ -48,6 +48,17 @@ namespace MetaFrame.Data
         {
             dataManager       = manager;
             _sourceNameLower  = SourceName.ToLower(); // cache once, never allocate again
+            RegisterWithManager(manager);
+        }
+
+        // FIX (D-4): split out the registration step so subclasses (e.g.
+        // DataSource_Voice, which writes its own files and shouldn't appear in
+        // the per-frame pipeline) can opt out of registration WITHOUT also
+        // skipping the SourceNameLower caching. The previous override of
+        // Initialize() in DataSource_Voice skipped both — leaving
+        // SourceNameLower null and risking NRE for any consumer that reads it.
+        protected virtual void RegisterWithManager(DataManager manager)
+        {
             manager.RegisterDataSource(this);
         }
 

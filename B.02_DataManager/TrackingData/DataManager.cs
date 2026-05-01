@@ -46,6 +46,18 @@ namespace MetaFrame.Data
             InitializeDataSources();
         }
 
+        // ── Validation (CONTRACT) ─────────────────────────────────────────────
+        // OnValidate runs in the Editor whenever a serialized field changes.
+        // Surfaces unassigned data source references before Play Mode rather
+        // than as a torrent of NRE-then-spam during recording.
+        private void OnValidate()
+        {
+            if (Hand == null) Debug.LogWarning($"[DataManager:{name}] Hand source unassigned.", this);
+            if (FACS == null) Debug.LogWarning($"[DataManager:{name}] FACS source unassigned.", this);
+            if (Body == null) Debug.LogWarning($"[DataManager:{name}] Body source unassigned.", this);
+            if (Gaze == null) Debug.LogWarning($"[DataManager:{name}] Gaze source unassigned.", this);
+        }
+
         // FIX: empty Update() removed. Unity invokes Update() on every MonoBehaviour that
         // defines one, even if the body is empty — a few hundred nanoseconds per frame.
         // Trivial by itself, but adds up across many empty Updates in a large project and

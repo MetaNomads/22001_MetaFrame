@@ -263,9 +263,31 @@ namespace MetaFrame.Data
                 }
                 catch (ObjectDisposedException) { break; }
                 catch (ThreadAbortException)    { Thread.ResetAbort(); break; }
-                catch { }
+                catch (Exception e)
+                {
+                    // FIX (D-5): the previous bare `catch { }` swallowed every
+                    // non-ObjectDisposed/non-ThreadAbort exception silently.
+                    // For a research build whose LSL sync drives downstream
+                    // alignment of EEG/audio/eye data, invisible network or
+                    // parsing failures are a research-validity hazard. We can't
+                    // raise here (would crash the listen thread and stop all
+                    // LSL traffic), so log to stderr (safe from any thread)
+                    // and continue. Burst-suppress with a coarse rate-limit
+                    // so a sustained fault doesn't fill the log.
+                    long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    if (nowMs - _lastListenErrorLogMs > 1000)
+                    {
+                        _lastListenErrorLogMs = nowMs;
+                        Console.Error.WriteLine(
+                            $"[LSLService] ListenLoop: {e.GetType().Name}: {e.Message}");
+                    }
+                }
             }
         }
+
+        // Rate-limit timestamp for the catch-all in ListenLoop. Touched only
+        // from the listen thread, so no synchronisation needed.
+        private static long _lastListenErrorLogMs;
 
         // ── Data snapshot ─────────────────────────────────────────────────────
 

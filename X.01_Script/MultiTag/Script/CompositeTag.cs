@@ -17,16 +17,20 @@ namespace MetaFrame.Tags
 
 		internal IEnumerable<Tag> Tags => _tags;
 
+		// FIX (T4-1): null-guard each tag element. If a Tag asset referenced by
+		// _tags is deleted, the array slot becomes null but the array length is
+		// preserved. Without the guard, every Add/Remove on this CompositeTag
+		// would NRE on the missing slot and break the whole operation.
 		internal void Add(GameObject instance, int hash)
 		{
 			for (int i = 0; i < _tags.Length; i++)
-				_tags[i].Add(instance, hash);
+				if (_tags[i] != null) _tags[i].Add(instance, hash);
 		}
 
 		internal void Remove(GameObject instance, int hash)
 		{
 			for (int i = 0; i < _tags.Length; i++)
-				_tags[i].Remove(instance, hash);
+				if (_tags[i] != null) _tags[i].Remove(instance, hash);
 		}
 
 		internal bool HasInstance(GameObject instance, bool allRequired)

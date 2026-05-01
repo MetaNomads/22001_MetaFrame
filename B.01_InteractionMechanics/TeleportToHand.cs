@@ -5,6 +5,7 @@ using Oculus.Interaction;
 using Oculus.Interaction.HandGrab;
 using Oculus.Interaction.Body.Input;
 using Oculus.Interaction.Input;
+using MetaFrame.Contracts;
 
 // ── TeleportToHand ───────────────────────────────────────────────────────────
 // Teleports an existing grabbable to the specified hand and force-selects it
@@ -36,10 +37,76 @@ public class TeleportToHand : MonoBehaviour
     [Tooltip("Fires after the object has been moved and grabbed by the hand.")]
     public UnityEvent OnTeleportEnd;
 
+    // ── Runtime state ─────────────────────────────────────────────────────────
+
+    // FIX (F-3): track the active Teleport coroutine so we can cancel it if a
+    // second teleport request arrives before the first completes. Two parallel
+    // coroutines would race on the same Rigidbody and the same interactor's
+    // state machine, leaving the interactor in a corrupted Select state and
+    // making subsequent grabs fail silently.
+    private Coroutine _activeTeleport;
+
+    // FIX (N-1): re-entrancy guard. OnTeleportStart fires synchronously during
+    // the coroutine; a UnityEvent listener on it (e.g. AnomalyStateManager
+    // .TriggerAnomaly cascading into onEnter UnityEvents) can call back into
+    // TeleportToLeftHand/Right while the outer coroutine is mid-flight. Without
+    // this guard, the inner StartTeleport would StopCoroutine the currently-
+    // executing outer coroutine — terminating it at its next yield, leaving
+    // OnTeleportEnd unfired and the rb.position/state transitions in an
+    // unpredictable order with the inner coroutine.
+    private bool _invokingStart;
+
+    // Settle timeout for waiting on interactor state transitions. Generous
+    // enough to cover Unselecting → Hovering → Normal under heavy frame load,
+    // but bounded so a stuck interactor cannot hang the coroutine forever.
+    private const float InteractorSettleTimeoutSeconds = 0.5f;
+
     // ── Public API ────────────────────────────────────────────────────────────
 
-    public void TeleportToLeftHand()  => StartCoroutine(Teleport(leftHandInteractor,  BodyJointId.Body_LeftHandPalm));
-    public void TeleportToRightHand() => StartCoroutine(Teleport(rightHandInteractor, BodyJointId.Body_RightHandPalm));
+    public void TeleportToLeftHand()  => StartTeleport(leftHandInteractor,  BodyJointId.Body_LeftHandPalm);
+    public void TeleportToRightHand() => StartTeleport(rightHandInteractor, BodyJointId.Body_RightHandPalm);
+
+    // ── Validation (CONTRACT) ─────────────────────────────────────────────────
+    private void OnValidate()
+    {
+        if (grabbable == null)
+            Debug.LogWarning($"[TeleportToHand:{name}] grabbable is unassigned.", this);
+        if (leftHandInteractor == null && rightHandInteractor == null)
+            Debug.LogWarning(
+                $"[TeleportToHand:{name}] both hand interactors are unassigned. " +
+                "TeleportToLeft/RightHand will fail at runtime.", this);
+    }
+
+    private void StartTeleport(HandGrabInteractor interactor, BodyJointId palmJointId)
+    {
+        // FIX (N-1): refuse re-entrant calls that originate from inside an
+        // OnTeleportStart UnityEvent. Stopping the outer coroutine while it
+        // is still synchronously inside its own Invoke() would terminate it
+        // at its next yield without ever firing OnTeleportEnd, while the
+        // inner coroutine raced ahead with stale state.
+        if (_invokingStart)
+        {
+            Debug.LogWarning(
+                "[TeleportToHand] Re-entrant teleport request while OnTeleportStart " +
+                "is still firing — ignored. Check what's wired into OnTeleportStart.");
+            return;
+        }
+
+        // FIX (F-3): cancel any in-flight teleport before kicking off a new one.
+        if (_activeTeleport != null)
+        {
+            StopCoroutine(_activeTeleport);
+            _activeTeleport = null;
+        }
+
+        if (!isActiveAndEnabled)
+        {
+            Debug.LogWarning("[TeleportToHand] Cannot start — component is disabled.");
+            return;
+        }
+
+        _activeTeleport = StartCoroutine(Teleport(interactor, palmJointId));
+    }
 
     // ── Internal ──────────────────────────────────────────────────────────────
 
@@ -48,20 +115,32 @@ public class TeleportToHand : MonoBehaviour
         if (interactor == null)
         {
             Debug.LogError("[TeleportToHand] Interactor is not assigned.");
+            _activeTeleport = null;
             yield break;
         }
 
         if (grabbable == null)
         {
             Debug.LogError("[TeleportToHand] Grabbable is not assigned.");
+            _activeTeleport = null;
             yield break;
         }
 
-        OnTeleportStart?.Invoke();
+        // FIX (N-1): set the re-entrancy flag around the synchronous Invoke so
+        // any callback that calls back into StartTeleport is rejected with a
+        // clear log instead of corrupting this coroutine's lifetime.
+        _invokingStart = true;
+        try   { OnTeleportStart?.Invoke(); }
+        finally { _invokingStart = false; }
 
-        // Release any existing grab on both hands first
-        leftHandInteractor?.ForceRelease();
-        rightHandInteractor?.ForceRelease();
+        // FIX (F-2): only release the target hand, and only if it actually has
+        // a selection. Force-releasing the *other* hand was gratuitous — it
+        // would drop whatever the player was holding in their other hand and
+        // could leave its interactable orphaned for a frame. Force-releasing
+        // an interactor that's only Hovering (not Selecting) can also briefly
+        // drop the hover candidate in some SDK versions.
+        if (interactor.HasSelectedInteractable)
+            interactor.ForceRelease();
 
         Vector3   palmPosition = GetPalmPosition(palmJointId, interactor.transform.position);
         Rigidbody rb           = grabbable.GetComponentInChildren<Rigidbody>();
@@ -93,7 +172,43 @@ public class TeleportToHand : MonoBehaviour
 
         Debug.Log($"[TeleportToHand] Moved to palm position {palmPosition}.");
 
-        // Wait one FixedUpdate so physics registers the new position before ForceSelect
+        // Wait one FixedUpdate so physics registers the new position before ForceSelect.
+        yield return new WaitForFixedUpdate();
+
+        // FIX (F-1): the prior code did a single WaitForFixedUpdate after
+        // ForceRelease and then immediately called ForceSelect. That is not
+        // enough time for a HandGrabInteractor to traverse Unselecting →
+        // Hovering → Normal. Calling ForceSelect mid-transition can leave the
+        // previously-released interactable's selecting-pointables set stuck
+        // with a phantom entry, AND leave the interactor itself in Select
+        // state with no real selection — at which point natural hover→select
+        // transitions on every other cup are silently blocked.
+        //
+        // We now poll the interactor state until it leaves Select/Disabled
+        // (or a timeout elapses, so the coroutine can never hang).
+        float settleStart = Time.realtimeSinceStartup;
+        while (interactor.State == InteractorState.Select ||
+               interactor.State == InteractorState.Disabled)
+        {
+            if (Time.realtimeSinceStartup - settleStart > InteractorSettleTimeoutSeconds)
+            {
+                Debug.LogWarning(
+                    $"[TeleportToHand] Interactor '{interactor.gameObject.name}' did not " +
+                    $"settle within {InteractorSettleTimeoutSeconds}s (state={interactor.State}). " +
+                    "Proceeding with ForceSelect — selection may be unstable.");
+                break;
+            }
+            yield return null;
+        }
+
+        // FIX (N-2): the settle loop polls per-frame (yield return null), but
+        // Meta XR interactor state machines commit transitions on their own
+        // FixedUpdate-driven update tick. A per-frame poll can observe the
+        // state-change boundary while the SDK is still mid-commit. One extra
+        // WaitForFixedUpdate gives the SDK a guaranteed physics tick to fully
+        // commit Unselecting → Hovering / Normal before we ForceSelect. Cheap
+        // insurance against the residual race that the per-frame poll cannot
+        // close on its own.
         yield return new WaitForFixedUpdate();
 
         HandGrabInteractable[] interactables =
@@ -104,6 +219,19 @@ public class TeleportToHand : MonoBehaviour
         if (best == null)
         {
             Debug.LogError($"[TeleportToHand] No HandGrabInteractable found on '{grabbable.name}'.");
+            _activeTeleport = null;
+            yield break;
+        }
+
+        // FIX (F-6): defensive sanity check. If a future refactor reintroduces
+        // cross-talk between cups, this assertion surfaces it loudly instead
+        // of silently force-selecting an interactable on a different object.
+        if (!best.transform.IsChildOf(grabbable.transform))
+        {
+            Debug.LogError(
+                $"[TeleportToHand] Chosen interactable '{best.name}' is NOT a descendant " +
+                $"of grabbable '{grabbable.name}'. Aborting ForceSelect to avoid cross-grab corruption.");
+            _activeTeleport = null;
             yield break;
         }
 
@@ -113,6 +241,8 @@ public class TeleportToHand : MonoBehaviour
 
         Debug.Log($"[TeleportToHand] Teleported '{grabbable.name}' into {interactor.gameObject.name} " +
                   $"using '{best.gameObject.name}'.");
+
+        _activeTeleport = null;
     }
 
     // ── Pose Selection ────────────────────────────────────────────────────────
@@ -132,19 +262,44 @@ public class TeleportToHand : MonoBehaviour
         if (interactables.Length == 0) return null;
         if (interactables.Length == 1) return interactables[0];
 
-        // Try to find the hand-specific container by naming convention
-        Handedness hand          = interactor.Hand.Handedness;
-        string     containerName = hand == Handedness.Left
-            ? "HandGrabInteractable_Left"
-            : "HandGrabInteractable_Right";
+        // FIX (F-5): null-guard interactor.Hand. If body/hand tracking has
+        // not bound yet (or has been lost mid-session), reading .Handedness
+        // would throw NRE and silently abort the teleport mid-trial — a
+        // determinism violation. Fall back to scoring across all interactables.
+        HandGrabInteractable[] candidates = interactables;
 
-        // Get the root instance (parent of all interactables)
-        Transform root = interactables[0].transform.root;
-        Transform container = root.Find(containerName);
+        if (interactor.Hand != null)
+        {
+            // Try to find the hand-specific container by naming convention.
+            Handedness hand          = interactor.Hand.Handedness;
+            string     containerName = hand == Handedness.Left
+                ? "HandGrabInteractable_Left"
+                : "HandGrabInteractable_Right";
 
-        HandGrabInteractable[] candidates = container != null
-            ? container.GetComponentsInChildren<HandGrabInteractable>()
-            : interactables;   // fall back if naming convention not matched
+            // FIX (F-4): the previous code used interactables[0].transform.root,
+            // which returns the SCENE-root topmost ancestor (e.g. a "Tableware"
+            // parent shared by every cup), not this grabbable's own root. Combined
+            // with Transform.Find — which only checks DIRECT children, not
+            // descendants — the named-container heuristic almost never matched
+            // and silently fell through to the unscoped interactables list.
+            // In a hierarchy where multiple grabbables share an ancestor that DID
+            // happen to contain a child of the same name, the lookup would resolve
+            // to a sibling object's container and ForceSelect would grab the wrong
+            // object. Scope to the grabbable's own subtree, and search recursively.
+            Transform container = FindDescendant(grabbable.transform, containerName);
+
+            if (container != null)
+            {
+                var scoped = container.GetComponentsInChildren<HandGrabInteractable>();
+                if (scoped.Length > 0) candidates = scoped;
+            }
+        }
+        else
+        {
+            Debug.LogWarning(
+                "[TeleportToHand] interactor.Hand is null — falling back to " +
+                "unscoped interactable scoring. Hand tracking may not be bound yet.");
+        }
 
         if (candidates.Length == 0) candidates = interactables;
         if (candidates.Length == 1) return candidates[0];
@@ -166,6 +321,24 @@ public class TeleportToHand : MonoBehaviour
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Recursive name-based descendant search, scoped to a single subtree.
+    /// Used in place of Transform.Find (which only searches direct children)
+    /// so the named-container heuristic actually matches when the container
+    /// sits more than one level deep under the grabbable.
+    /// </summary>
+    private static Transform FindDescendant(Transform parent, string name)
+    {
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            Transform child = parent.GetChild(i);
+            if (child.name == name) return child;
+            Transform deeper = FindDescendant(child, name);
+            if (deeper != null) return deeper;
+        }
+        return null;
     }
 
     /// <summary>

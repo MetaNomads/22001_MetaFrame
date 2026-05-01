@@ -55,9 +55,32 @@ namespace MetaFrame.State
             AdvanceForced();
         }
 
+        // FIX (S-5): re-entrancy guard. AdvanceForced mutates the GSM's
+        // allowedFrom lists in place, runs Advance(), and restores them in a
+        // finally block. While Advance() is running, the lists are EMPTY —
+        // any nested code path (a UnityEvent listener that calls Step() or
+        // ForceStep() from inside an onEnter/onExit) would observe this empty
+        // state and silently bypass guards that should still apply to it.
+        // The simplest defense is to refuse the nested call.
+        private bool _inAdvanceForced;
+
         private bool AdvanceForced()
         {
             if (sequencer == null) return false;
+
+            // FIX (S-5): refuse nested AdvanceForced/Step from inside an
+            // already-running ForceStep. Letting it through would corrupt
+            // the slots' allowedFrom contents and/or run Advance() twice
+            // with overlapping state mutations.
+            if (_inAdvanceForced)
+            {
+                Debug.LogWarning(
+                    "[ExperimentController] Nested ForceStep / AdvanceForced call " +
+                    "detected (likely from a UnityEvent listener fired by Advance()'s " +
+                    "transitions). Ignored — call ForceStep again on the next frame " +
+                    "if the second advance is intentional.");
+                return false;
+            }
 
             var gsm = sequencer.GSM;
             if (gsm == null) return sequencer.Advance();
@@ -74,6 +97,7 @@ namespace MetaFrame.State
             }
 
             bool result;
+            _inAdvanceForced = true;
             try { result = sequencer.Advance(); }
             finally
             {
@@ -83,6 +107,7 @@ namespace MetaFrame.State
                     slots[i].allowedFrom.Clear();
                     slots[i].allowedFrom.AddRange(saved[i]);
                 }
+                _inAdvanceForced = false;
             }
 
             return result;
