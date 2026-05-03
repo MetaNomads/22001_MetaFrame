@@ -27,7 +27,7 @@ namespace MetaFrame.Data
     }
 
     /// <summary>
-    /// JSON-persisted survey shape. Fields are written in q1..q5 order.
+    /// JSON-persisted survey shape. Fields are written in q1..q4 order.
     /// Unanswered questions stay null and are omitted from output.
     /// </summary>
     public class SurveyEntry
@@ -36,7 +36,6 @@ namespace MetaFrame.Data
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q2;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q3;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q4;
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public string q5;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long? reportStart;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] public long? reportEnd;
     }
@@ -76,9 +75,8 @@ namespace MetaFrame.Data
     /// <summary>
     /// Input shape produced by SurveyDataRecorder.Collect().
     ///
-    /// q1, q2 — always asked (Stage 1).
-    /// q3     — asked when q1 != q1EndValue (Stage 2).
-    /// q4, q5 — asked when q3 == q3BranchValue (Stage 3).
+    /// q1, q2, q3 — always asked.
+    /// q4         — asked only when Q3 matches q3ShowQ4Value (set in SurveyControl).
     /// </summary>
     public class SurveyData
     {
@@ -86,7 +84,6 @@ namespace MetaFrame.Data
         public string q2;
         public string q3;
         public string q4;
-        public string q5;
         public long? reportStart;
     }
 
@@ -234,15 +231,6 @@ namespace MetaFrame.Data
                 stimulus = stimulus,
             };
 
-            //// trial_start was entered before OnTrialBegan fired — record it as the opening entry
-            //if (gsm != null)
-            //{
-            //    _currentTrial.stateTransitions.Add(new TransitionEvent(
-            //        from: _prevGsmStateName ?? "—",
-            //        to:   gsm.StateName(gsm.CurrentStateIndex),
-            //        time: DateTime.Now));
-            //}
-
             _currentSession.trials.Add(_currentTrial);
             Debug.Log($"[ExperimentDataRecorder] Trial {_currentTrial.trialNumber} began in '{_currentSession.sessionLabel}'. Stimulus: {stimulus}");
         }
@@ -292,7 +280,6 @@ namespace MetaFrame.Data
                 q2 = data.q2,
                 q3 = data.q3,
                 q4 = data.q4,
-                q5 = data.q5,
                 reportStart = data.reportStart,
                 reportEnd = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
@@ -315,7 +302,6 @@ namespace MetaFrame.Data
                 q2 = data.q2,
                 q3 = data.q3,
                 q4 = data.q4,
-                q5 = data.q5,
                 reportStart = data.reportStart,
                 reportEnd = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
@@ -345,9 +331,6 @@ namespace MetaFrame.Data
         {
             if (_currentTrial == null) return;
 
-            // FIX: was from.ToString(), to.ToString(), sender.gameObject.name —
-            // all three allocate new strings on every call. AnomalyStateName()
-            // returns a pre-allocated static string; CachedName is set at Start().
             _currentTrial.anomalyTransitions.Add(new TransitionEvent(
                 from: AnomalyStateManager.AnomalyStateName(from),
                 to: AnomalyStateManager.AnomalyStateName(to),

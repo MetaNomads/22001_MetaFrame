@@ -142,37 +142,41 @@ public class TeleportToHand : MonoBehaviour
         if (interactor.HasSelectedInteractable)
             interactor.ForceRelease();
 
-        Vector3   palmPosition = GetPalmPosition(palmJointId, interactor.transform.position);
-        Rigidbody rb           = grabbable.GetComponentInChildren<Rigidbody>();
+        Rigidbody rb = grabbable.GetComponentInChildren<Rigidbody>();
 
+        // Always zero velocities so leftover momentum (gravity, residual physics)
+        // doesn't drag the cup visibly between here and the ForceSelect call below.
         if (rb != null)
         {
-            if (rb.isKinematic)
-            {
-                // For kinematic Rigidbodies, rb.position is immediate — no FixedUpdate needed.
-                // MovePosition only interpolates visually and does NOT update rb.position
-                // until the next FixedUpdate, which causes ForceSelect to see the old position.
-                rb.position        = palmPosition;
-                rb.linearVelocity  = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-            }
-            else
-            {
-                // For non-kinematic Rigidbodies, zero velocity and teleport via transform.
-                // MovePosition is for smooth movement, not instant teleport.
-                rb.linearVelocity  = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-                rb.position        = palmPosition;
-            }
+            rb.linearVelocity  = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
         }
-        else
+
+        // FIX (visual glitch): only pre-position the rigidbody when useHandPose=false.
+        //
+        // When useHandPose=true (the common case), ForceSelect snaps the grabbable
+        // to the authored grab pose attached to the HandGrabInteractable — it
+        // ignores wherever rb.position currently is. Setting rb.position to
+        // palmPosition here just makes the cup visible at palmPosition for the
+        // ~4 frames between this line and the ForceSelect call (one WaitForFixedUpdate,
+        // then the state-settle loop, then another WaitForFixedUpdate). That's the
+        // "two-step teleport" visual glitch — cup appears at palmPosition (which
+        // often lands at the wrist / hand-root if body tracking is using the
+        // fallback path in GetPalmPosition), then snaps to the actual authored
+        // grip pose at the hand.
+        //
+        // When useHandPose=false, ForceSelect attaches the grabbable at its
+        // current world pose, so we DO need to pre-position it.
+        if (!useHandPose)
         {
-            grabbable.transform.position = palmPosition;
+            Vector3 palmPosition = GetPalmPosition(palmJointId, interactor.transform.position);
+            if (rb != null) rb.position                 = palmPosition;
+            else            grabbable.transform.position = palmPosition;
+            Debug.Log($"[TeleportToHand] Pre-positioned to palm {palmPosition} (useHandPose=false).");
         }
 
-        Debug.Log($"[TeleportToHand] Moved to palm position {palmPosition}.");
-
-        // Wait one FixedUpdate so physics registers the new position before ForceSelect.
+        // Wait one FixedUpdate so physics registers the velocity zeroing (and
+        // any pre-position write above) before ForceSelect.
         yield return new WaitForFixedUpdate();
 
         // FIX (F-1): the prior code did a single WaitForFixedUpdate after

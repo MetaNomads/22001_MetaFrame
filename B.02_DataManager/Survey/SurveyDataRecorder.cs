@@ -12,17 +12,15 @@ namespace MetaFrame.Data
     {
         // ── Response state ────────────────────────────────────────────────────────
         //
-        // q1 + q2 are always asked.
-        // q3 is asked only when q1 != q1EndValue.
-        // q4 + q5 are asked only when q3 == q3BranchValue.
-        // Unanswered slots stay null and serialise as omitted (matches the old
+        // q1 + q2 + q3 are always asked.
+        // q4 is asked only when q3 == q3ShowQ4Value.
+        // Unanswered slots stay null and serialise as omitted (matches the existing
         // NullValueHandling.Ignore behaviour for SurveyEntry).
 
         private string _q1;
         private string _q2;
         private string _q3;
         private string _q4;
-        private string _q5;
         private long?  _reportStart;
 
         // ── Public setters — wire these to your UI ────────────────────────────────
@@ -31,7 +29,6 @@ namespace MetaFrame.Data
         public void SetQ2(string value) => _q2 = value;
         public void SetQ3(string value) => _q3 = value;
         public void SetQ4(string value) => _q4 = value;
-        public void SetQ5(string value) => _q5 = value;
 
         /// <summary>
         /// Stamps report start time on first call per trial.
@@ -47,13 +44,14 @@ namespace MetaFrame.Data
         // ── Gate ──────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// True when q1, q2, and reportStart are all filled.
-        /// q1 and q2 are the only questions ALWAYS asked — q3/q4/q5 are conditional
-        /// on the branching logic in SurveyControl, so they aren't part of the gate.
+        /// True when q1, q2, q3, and reportStart are all filled.
+        /// q1, q2, q3 are always asked — q4 is conditional on the Q3 answer in
+        /// SurveyControl, so it isn't part of the gate.
         /// </summary>
         public bool IsReady =>
             !string.IsNullOrEmpty(_q1) &&
             !string.IsNullOrEmpty(_q2) &&
+            !string.IsNullOrEmpty(_q3) &&
             _reportStart.HasValue;
 
         // ── Collect ───────────────────────────────────────────────────────────────
@@ -62,11 +60,8 @@ namespace MetaFrame.Data
         /// Packages current responses into a SurveyData and resets for the next trial.
         /// Only call after confirming IsReady.
         ///
-        /// NOTE: SurveyData (defined elsewhere) must expose matching fields:
-        ///   string q1, q2, q3, q4, q5;
-        ///   long?  reportStart;
-        /// Update SurveyData (and any persisted SurveyEntry/JSON shape it maps to)
-        /// to use q1..q5 as column headers.
+        /// NOTE: SurveyData (defined in ExperimentDataRecorder.cs) must expose
+        /// matching fields: string q1, q2, q3, q4; long? reportStart.
         /// </summary>
         public SurveyData Collect()
         {
@@ -76,7 +71,6 @@ namespace MetaFrame.Data
                 q2          = _q2,
                 q3          = _q3,
                 q4          = _q4,
-                q5          = _q5,
                 reportStart = _reportStart,
             };
 
@@ -91,7 +85,6 @@ namespace MetaFrame.Data
             _q2          = null;
             _q3          = null;
             _q4          = null;
-            _q5          = null;
             _reportStart = null;
         }
     }
