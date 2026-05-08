@@ -80,7 +80,29 @@ namespace MetaFrame.State
 
         [Min(1)] public int anomalyCount = 3;
 
-        public int subjectID = 1;
+        // ── Subject ID ─────────────────────────────────────────────────────────────
+        // Authoritative for trial-sequence resolution. Two ways to set it:
+        //   1. Editor / PC standalone development → leave _autoConfirmInEditorOnStart
+        //      = true and bake the value via the inspector. Start() will call
+        //      TrySetSubjectID() on the inspector value.
+        //   2. Quest builds → leave _autoConfirmInEditorOnStart = false (and ignore
+        //      the inspector value). The LslExperimentRouter receives SUBJECT_ID:NN
+        //      from the LSL host and calls TrySetSubjectID() on the main thread.
+        //
+        // Until the ID is confirmed, the sequencer is dormant: no LoadSequence,
+        // no InitExperiment, no GSM transition. Step / ForceStep / JumpToSession
+        // are all no-ops with a warning log.
+        [Tooltip("Inspector value used in Editor / PC builds only when " +
+                 "_autoConfirmInEditorOnStart is true. On Quest this value is " +
+                 "ignored — the LSL host pushes the real ID.")]
+        public int subjectID = 0;
+
+        [Tooltip("Editor / PC standalone fallback — if true, Start() will " +
+                 "auto-confirm using the inspector value so dev testing works " +
+                 "without the LSL host. Always disable for Quest builds.")]
+        [SerializeField] private bool _autoConfirmInEditorOnStart = true;
+
+        public bool IsSubjectIdConfirmed { get; private set; }
 
         [Header("Tutorial Session")]
         public SessionGroup tutorialGroup = new() { groupName = "Tutorial" };
@@ -127,6 +149,19 @@ namespace MetaFrame.State
                 ? resolvedSequences[_sessionIndex] : null;
 
         // ── Static Events ──────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Fires the moment the subject ID is confirmed (either via LSL handshake
+        /// on Quest, or via the editor auto-confirm path during dev testing).
+        /// Subscribers (TrackingDataRecorder, etc.) MUST use this — not Awake —
+        /// to start their own work, because no folder is created and no trial
+        /// sequence is resolved until this fires. The subscriber order matters:
+        /// TrackingDataRecorder creates the session folder during this event,
+        /// then the sequencer immediately runs LoadSequence + InitExperiment so
+        /// OnExperimentBegan handlers (e.g. ExperimentDataRecorder) see a valid
+        /// sessionPath when they fire.
+        /// </summary>
+        public static event System.Action<int> OnSubjectIdConfirmed;
 
         /// <summary>Fires once when the experiment is initialised.</summary>
         public static event System.Action<int> OnExperimentBegan;
@@ -259,11 +294,99 @@ namespace MetaFrame.State
         // ── Init ───────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Call once before the experiment starts (e.g. on a setup screen).
-        /// Resolves the sequence and broadcasts to any listeners (e.g. SurveyDataRecorder).
+        /// Confirms the subject ID and arms the sequencer. This is the single entry
+        /// point for both the LSL handshake (Quest) and the editor auto-confirm
+        /// (dev testing). Must be called from the main thread.
+        ///
+        /// On success, in this exact order:
+        ///   1. subjectID is updated and IsSubjectIdConfirmed is set true
+        ///   2. OnSubjectIdConfirmed fires (TrackingDataRecorder creates folder)
+        ///   3. LoadSequence() resolves the trial sequence using the new ID
+        ///   4. InitExperiment() fires OnExperimentBegan (recorders see folder)
+        ///   5. GSM is forced to experiment_start (sequencer is now ready for Step)
+        ///
+        /// Subsequent calls with the same ID are idempotent (no-op, returns true).
+        /// Calls with a different ID are rejected unless allowOverride is true —
+        /// callers that legitimately need to reset the session should pass true.
         /// </summary>
+        /// <returns>true on success; false on validation/state failure (err out-param explains).</returns>
+        public bool TrySetSubjectID(int id, out string err, bool allowOverride = false)
+        {
+            err = null;
+
+            if (id < 1)
+            {
+                err = $"Subject ID must be >= 1 (received {id}).";
+                Debug.LogError($"[Sequencer] {err}");
+                return false;
+            }
+
+            if (IsSubjectIdConfirmed)
+            {
+                if (subjectID == id) return true;                // idempotent
+                if (!allowOverride)
+                {
+                    err = $"Subject ID already confirmed as {subjectID}; " +
+                          $"refusing override to {id} without explicit allowOverride.";
+                    Debug.LogError($"[Sequencer] {err}");
+                    return false;
+                }
+                Debug.LogWarning($"[Sequencer] Override: subjectID {subjectID} → {id}.");
+            }
+
+            if (gsm == null)
+            {
+                err = "GameStateManager reference missing on ExperimentSequencer.";
+                Debug.LogError($"[Sequencer] {err}");
+                return false;
+            }
+
+            // Commit the ID before firing the event so subscribers see consistent state.
+            subjectID = id;
+            IsSubjectIdConfirmed = true;
+
+            try
+            {
+                // 1. Notify subscribers (TrackingDataRecorder creates the session folder here).
+                OnSubjectIdConfirmed?.Invoke(subjectID);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[Sequencer] OnSubjectIdConfirmed subscriber threw: {e}");
+                // Continue — subscriber failures must not block experiment init.
+            }
+
+            // 2. Resolve the trial sequence using the new ID.
+            LoadSequence();
+
+            // 3. Initialise — fires OnExperimentBegan, by which point sessionPath is set.
+            _sessionIndex = 0;
+            _trialIndex = 0;
+            OnExperimentBegan?.Invoke(subjectID);
+
+            // 4. Place the GSM at experiment_start so the next Step() begins the tutorial.
+            gsm.ForceState(stateExperimentStart);
+
+            Debug.Log($"[Sequencer] Subject {subjectID:D2} confirmed. Sequencer armed at experiment_start.");
+            return true;
+        }
+
+        /// <summary>
+        /// Legacy entry point kept for any existing callers — InitExperiment now
+        /// requires a confirmed subject ID. Editor / PC dev path uses
+        /// _autoConfirmInEditorOnStart in Start(); production path is via
+        /// TrySetSubjectID() driven by LslExperimentRouter.
+        /// </summary>
+        [System.Obsolete("Use TrySetSubjectID(id, out err) instead. Direct InitExperiment is no longer supported because subjectID must be confirmed first.")]
         public void InitExperiment()
         {
+            if (!IsSubjectIdConfirmed)
+            {
+                Debug.LogError("[Sequencer] InitExperiment called before subject ID confirmation. " +
+                               "Call TrySetSubjectID() instead.");
+                return;
+            }
+
             if (resolvedSequences == null || resolvedSequences.Count == 0)
                 LoadSequence();
 
@@ -442,10 +565,26 @@ namespace MetaFrame.State
 
         private void Start()
         {
-            LoadSequence();
-            InitExperiment();
-            gsm.ForceState(stateExperimentStart);
-            Debug.Log("[Sequencer] Ready at experiment_start.");
+            // Quest / production: do nothing here. The sequencer waits in dormant
+            // state until LslExperimentRouter receives SUBJECT_ID:NN and calls
+            // TrySetSubjectID(). At that point folder creation, sequence resolution,
+            // and the experiment_start transition all happen atomically.
+            //
+            // Editor / PC standalone dev: if _autoConfirmInEditorOnStart is true and
+            // an inspector subjectID is set, auto-confirm so existing dev workflow
+            // (hit Play, run experiment) keeps working. Otherwise, the sequencer
+            // sits dormant until the operator clicks "Confirm Subject ID" in the
+            // Sequencer inspector or the LSL host pushes one.
+            if (_autoConfirmInEditorOnStart && Application.isEditor && subjectID >= 1)
+            {
+                if (!TrySetSubjectID(subjectID, out string err))
+                    Debug.LogWarning($"[Sequencer] Editor auto-confirm failed: {err}");
+            }
+            else
+            {
+                Debug.Log("[Sequencer] Dormant — waiting for TrySetSubjectID() " +
+                          "(LSL host on Quest, or editor confirm button in dev).");
+            }
         }
     }
 
@@ -469,6 +608,7 @@ namespace MetaFrame.State
 
         private SerializedProperty _anomalyCount;
         private SerializedProperty _subjectID;
+        private SerializedProperty _autoConfirmInEditorOnStart;
         private SerializedProperty _tutorialGroup;
         private SerializedProperty _tutorialStimuli;
         private SerializedProperty _sessionGroups;
@@ -486,6 +626,7 @@ namespace MetaFrame.State
         {
             _anomalyCount = serializedObject.FindProperty("anomalyCount");
             _subjectID = serializedObject.FindProperty("subjectID");
+            _autoConfirmInEditorOnStart = serializedObject.FindProperty("_autoConfirmInEditorOnStart");
             _tutorialGroup = serializedObject.FindProperty("tutorialGroup");
             _tutorialStimuli = serializedObject.FindProperty("tutorialStimuli");
             _sessionGroups = serializedObject.FindProperty("sessionGroups");
@@ -511,6 +652,43 @@ namespace MetaFrame.State
             // ── Subject ID ──────────────────────────────────────────────
             int ac = Mathf.Max(1, _anomalyCount.intValue);
             EditorGUILayout.PropertyField(_subjectID, new GUIContent("Subject ID"));
+            EditorGUILayout.PropertyField(_autoConfirmInEditorOnStart, new GUIContent(
+                "Auto-Confirm In Editor",
+                "If true, hitting Play in the Editor (or running a PC standalone build) " +
+                "auto-confirms the inspector Subject ID. Turn this OFF for Quest builds " +
+                "so the LSL host is the source of truth."));
+
+            // ── Runtime confirmation status & manual confirm button (Play Mode) ──
+            // The sequencer no longer auto-runs on Start when _autoConfirmInEditorOnStart
+            // is false (production / Quest). This button lets a developer hit
+            // Confirm during Play Mode without needing the LSL host attached.
+            if (Application.isPlaying)
+            {
+                Repaint();
+                EditorGUILayout.Space(2);
+                if (seq.IsSubjectIdConfirmed)
+                {
+                    EditorGUILayout.HelpBox(
+                        $"Subject ID {seq.subjectID:D2} CONFIRMED — sequencer is armed.",
+                        MessageType.Info);
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox(
+                        "Subject ID NOT confirmed — sequencer is dormant. Click Confirm " +
+                        "(or wait for the LSL host to push SUBJECT_ID:NN).",
+                        MessageType.Warning);
+
+                    GUI.color = new Color(0.5f, 1f, 0.6f);
+                    if (GUILayout.Button($"✓ Confirm Subject ID {_subjectID.intValue:D2}", GUILayout.Height(26)))
+                    {
+                        if (!seq.TrySetSubjectID(_subjectID.intValue, out string err))
+                            Debug.LogError($"[Sequencer] Confirm failed: {err}");
+                    }
+                    GUI.color = Color.white;
+                }
+                EditorGUILayout.Space(4);
+            }
 
             // ── Resolved Sequence — computed inline, no LoadSequence() ──
             int n = _sessionGroups.arraySize;

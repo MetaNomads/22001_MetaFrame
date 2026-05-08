@@ -11,12 +11,20 @@ using Newtonsoft.Json;
 
 namespace MetaFrame.Data
 {
-    // Recording starts in Awake() to match the original architecture. This runs before
-    // DataManager.Start() populates _dataSources, so the first probe sees an empty list
-    // — that's fine, sources register themselves as they initialize and recording picks
-    // them up on the next Update tick. No execution-order attributes are used because
-    // OVR's components (OVRManager, OVRFaceExpressions, OVRSkeleton, GazePose) are
-    // sensitive to being preempted.
+    // Recording is DEFERRED until ExperimentSequencer.OnSubjectIdConfirmed fires.
+    // The historical behaviour was to call StartRecording() in Awake(), which created
+    // the session folder synchronously at scene load. That doesn't work for the Quest
+    // build because the subject ID arrives over LSL after scene load — we can't bake
+    // it into the folder name unless we wait. So now:
+    //   - Awake() caches config (no I/O).
+    //   - OnEnable() subscribes to ExperimentSequencer.OnSubjectIdConfirmed.
+    //   - On confirmation, StartRecording() runs and CreateSessionDirectory() reads
+    //     the (now-known) subjectID and bakes it into the folder name.
+    //   - Editor / PC dev path: ExperimentSequencer.Start() auto-confirms with the
+    //     inspector-baked ID when _autoConfirmInEditorOnStart is true, so dev workflow
+    //     is unchanged.
+    // No execution-order attributes are used because OVR's components (OVRManager,
+    // OVRFaceExpressions, OVRSkeleton, GazePose) are sensitive to being preempted.
     public class TrackingDataRecorder : MonoBehaviour
     {
         [SerializeField] private DataManager _dataManager;
@@ -27,7 +35,16 @@ namespace MetaFrame.Data
         [SerializeField] private MetaFrame.State.ExperimentSequencer _experimentSequencer;
 
         [BoxGroup("Output Settings")]
-        [FolderPath] public string _savePath;
+        [Tooltip("Save path used in the Unity Editor and PC standalone builds. " +
+                 "Absolute path. Example: C:\\TrackingData")]
+        [FolderPath] public string _savePathPC = @"C:\TrackingData";
+
+        [BoxGroup("Output Settings")]
+        [Tooltip("Subfolder name used on Android headsets (Quest, Pico, etc). " +
+                 "Resolves to Application.persistentDataPath/<this>, which on a Quest is:\n" +
+                 "/sdcard/Android/data/<package>/files/<this>\n" +
+                 "Retrieve over USB via MQDH, SideQuest, or `adb pull`.")]
+        [SerializeField] private string _savePathAndroid = "TrackingData";
 
         [BoxGroup("Output Settings")]
         [SerializeField]
@@ -128,11 +145,49 @@ namespace MetaFrame.Data
                 FloatParseHandling = FloatParseHandling.Double,
             };
 
-            // Matches the original architecture: start recording in Awake. This runs
-            // before DataManager.Start() populates _dataSources, so the first probe
-            // sees an empty list and the first few Update ticks collect nothing — but
-            // as soon as DataManager.Start() completes, sources register via
-            // RegisterDataSource() and recording begins automatically on the next tick.
+            // Recording start is DEFERRED until ExperimentSequencer.OnSubjectIdConfirmed
+            // fires (see OnEnable). This is the change for the Quest build: the subject
+            // ID is set at runtime via the LSL handshake, not baked into the scene, so
+            // we cannot create the session folder until we know it.
+        }
+
+        void OnEnable()
+        {
+            // Subscribe to the sequencer's subject-confirmation event. This is the
+            // signal that subjectID is now valid and we can create the session folder
+            // with the correct SubjectXX_ prefix.
+            MetaFrame.State.ExperimentSequencer.OnSubjectIdConfirmed += OnSubjectIdConfirmed;
+
+            // Catch-up case: the sequencer may have already fired the event before
+            // our OnEnable ran (script-execution-order race). If so, start now.
+            // This mirrors the same defensive pattern VideoRecorder uses for our
+            // OnRecordingStarted event.
+            var seq = MetaFrame.State.ExperimentSequencer.instance;
+            if (seq != null && seq.IsSubjectIdConfirmed && !startRecord)
+            {
+                Debug.Log("[DataRecorder] OnEnable — sequencer already confirmed; catching up.");
+                StartRecording();
+            }
+        }
+
+        void OnDisable()
+        {
+            // Always unsubscribe in OnDisable — Unity calls OnDisable before OnDestroy
+            // for component teardown, and also during domain reload in the editor.
+            // Subscribing in OnEnable + unsubscribing in OnDisable is the standard
+            // safe pair for Unity's static-event lifecycle.
+            MetaFrame.State.ExperimentSequencer.OnSubjectIdConfirmed -= OnSubjectIdConfirmed;
+        }
+
+        private void OnSubjectIdConfirmed(int subjectID)
+        {
+            if (startRecord)
+            {
+                // Idempotent — sequencer fired confirmation again (override path).
+                Debug.Log($"[DataRecorder] OnSubjectIdConfirmed({subjectID}) — already recording, ignoring.");
+                return;
+            }
+            Debug.Log($"[DataRecorder] OnSubjectIdConfirmed({subjectID}) — starting recording.");
             StartRecording();
         }
 
@@ -213,6 +268,22 @@ namespace MetaFrame.Data
         public void StartRecording()
         {
             if (startRecord) return;
+
+            // Hard guard: never create a session folder without a confirmed subject ID.
+            // The previous design silently fell back to "Recording_<timestamp>" if the
+            // sequencer wasn't found — that produced anonymous data folders nobody
+            // could match back to a subject. Refuse instead.
+            var seq = MetaFrame.State.ExperimentSequencer.instance;
+            if (seq == null || !seq.IsSubjectIdConfirmed || seq.subjectID < 1)
+            {
+                Debug.LogError(
+                    "[DataRecorder] StartRecording refused — subject ID is not confirmed. " +
+                    "Recording must be triggered by ExperimentSequencer.OnSubjectIdConfirmed " +
+                    "(via LSL handshake on Quest, or the editor confirm button in dev). " +
+                    "If you're hitting this in the editor, set _autoConfirmInEditorOnStart " +
+                    "= true on ExperimentSequencer or click Confirm in Play Mode.");
+                return;
+            }
 
             try
             {
@@ -353,7 +424,13 @@ namespace MetaFrame.Data
 
         private string GetCurrentStatus()
         {
-            if (!startRecord) return "Not Recording";
+            if (!startRecord)
+            {
+                var seq = MetaFrame.State.ExperimentSequencer.instance;
+                if (seq == null) return "Waiting — no ExperimentSequencer in scene";
+                if (!seq.IsSubjectIdConfirmed) return "Waiting — subject ID not confirmed (LSL handshake pending)";
+                return "Idle (recording stopped)";
+            }
             if (!_writerAlive) return "ERROR — Writer thread died";
             return _isPaused ? "Paused" : "Recording";
         }
@@ -492,27 +569,42 @@ namespace MetaFrame.Data
                 _experimentSequencer = UnityEngine.Object.FindObjectOfType<MetaFrame.State.ExperimentSequencer>();
 #endif
 
-            string folderName;
-            if (_experimentSequencer != null && _experimentSequencer.subjectID > 0)
+            // The guard in StartRecording() guarantees a confirmed subject ID exists
+            // before we get here, so we can fail hard if it's not. The old "fall back
+            // to Recording_<timestamp>" branch was a footgun — it produced unlabelled
+            // recordings that couldn't be matched to a subject post hoc.
+            if (_experimentSequencer == null || !_experimentSequencer.IsSubjectIdConfirmed || _experimentSequencer.subjectID < 1)
             {
-                string subjectPrefix = $"Subject{_experimentSequencer.subjectID:D2}";
-                folderName = $"{subjectPrefix}_{_folderPrefix}_{_startTime}";
-                Debug.Log($"[DataRecorder] ExperimentSequencer found — using subject prefix '{subjectPrefix}'.");
-            }
-            else
-            {
-                folderName = $"{_folderPrefix}_{_startTime}";
-            }
-
-            if (string.IsNullOrEmpty(_savePath))
-            {
-                // FIX: don't silently fail when _savePath isn't configured. Fall back to
-                // persistentDataPath so recording always has somewhere to land.
-                _savePath = Path.Combine(Application.persistentDataPath, "Recordings");
-                Debug.LogWarning($"[DataRecorder] _savePath not set — falling back to '{_savePath}'.");
+                throw new System.InvalidOperationException(
+                    "[DataRecorder] CreateSessionDirectory called without a confirmed subject ID. " +
+                    "This should be unreachable — the StartRecording guard runs first.");
             }
 
-            sessionPath = Path.Combine(_savePath, folderName);
+            string subjectPrefix = $"Subject{_experimentSequencer.subjectID:D2}";
+            string folderName = $"{subjectPrefix}_{_folderPrefix}_{_startTime}";
+            Debug.Log($"[DataRecorder] Using subject prefix '{subjectPrefix}'.");
+
+            // Resolve the platform-specific base save path.
+            // - Editor / PC standalone → absolute path on disk (_savePathPC)
+            // - Android headsets       → Application.persistentDataPath/<_savePathAndroid>
+            //   which on Quest is /sdcard/Android/data/<package>/files/<_savePathAndroid>
+            string basePath;
+#if UNITY_EDITOR || UNITY_STANDALONE_WIN || UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX
+            basePath = _savePathPC;
+            if (string.IsNullOrEmpty(basePath))
+            {
+                basePath = Path.Combine(Application.persistentDataPath, "Recordings");
+                Debug.LogWarning($"[DataRecorder] _savePathPC not set — falling back to '{basePath}'.");
+            }
+#elif UNITY_ANDROID
+            string androidSubfolder = string.IsNullOrEmpty(_savePathAndroid) ? "Recordings" : _savePathAndroid;
+            basePath = Path.Combine(Application.persistentDataPath, androidSubfolder);
+#else
+            basePath = Path.Combine(Application.persistentDataPath, "Recordings");
+            Debug.LogWarning($"[DataRecorder] Unrecognised platform — falling back to '{basePath}'.");
+#endif
+
+            sessionPath = Path.Combine(basePath, folderName);
             Directory.CreateDirectory(sessionPath);
             Debug.Log($"[DataRecorder] Session directory: {sessionPath}");
         }

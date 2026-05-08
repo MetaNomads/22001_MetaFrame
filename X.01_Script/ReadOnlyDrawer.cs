@@ -1,10 +1,12 @@
 using UnityEngine;
+#if UNITY_EDITOR
 using UnityEditor;
-using System.Collections;
+#endif
 
 
 namespace MetaFrame.Utilities.Editor
 {
+#if UNITY_EDITOR
     [CustomPropertyDrawer(typeof(InspectorReadOnlyAttribute))]
     public class InspectorReadOnlyDrawer : PropertyDrawer
     {
@@ -15,6 +17,7 @@ namespace MetaFrame.Utilities.Editor
             GUI.enabled = true;
         }
     }
+#endif
 
     public class InspectorReadOnlyAttribute : PropertyAttribute
     {

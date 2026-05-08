@@ -9,6 +9,7 @@
 // LSL so LSL updates its target without a full re-handshake.
 
 using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -46,6 +47,40 @@ namespace MetaFrame.Data
 
         private static volatile bool   _dataRequested = false;
         private static volatile string _pendingPingId  = null;
+
+        // Inbound experiment-controller messages (SUBJECT_ID:, CMD:, STATE_REQ).
+        // These are queued from the listen thread and drained on the main thread
+        // in Tick() so subscribers (LslExperimentRouter) can safely call Unity APIs.
+        private static readonly ConcurrentQueue<string> _pendingHostMessages
+            = new ConcurrentQueue<string>();
+
+        /// <summary>
+        /// Fires on the MAIN THREAD for every experiment-controller message
+        /// received from the locked LSL host (SUBJECT_ID:, CMD:STEP/FORCE_STEP/
+        /// SESSION:, STATE_REQ, etc). Subscribe in OnEnable / unsubscribe in
+        /// OnDisable. Subscribers may call Unity APIs freely. Subscriber
+        /// failures are isolated — one throwing handler doesn't stall others.
+        /// </summary>
+        public static event Action<string> OnHostMessage;
+
+        /// <summary>
+        /// Fires on the MAIN THREAD once the LSL host completes its CONNECT
+        /// handshake (or RECONNECT after a domain reload). Use this to push
+        /// initial state back to LSL — e.g. LslExperimentRouter sends a
+        /// READY:subject=&lt;id&gt; message so the LSL operator's UI repopulates
+        /// without a manual STATE_REQ. Fires once per CONNECT/RECONNECT.
+        /// </summary>
+        public static event Action OnHostConnected;
+
+        // Set true by ListenLoop on CONNECT/RECONNECT, drained by Tick which
+        // fires OnHostConnected on the main thread.
+        private static volatile bool _pendingHostConnectedEvent = false;
+
+        /// <summary>True when the LSL host has handshaken via CONNECT.</summary>
+        public static bool IsHostLocked => _connected && !string.IsNullOrEmpty(_lslIP);
+
+        /// <summary>The locked LSL host IP, or null. Read-only.</summary>
+        public static string LockedHostIp => _lslIP;
 
         // Deferred recording requests — fired as soon as connection is ready
         private static volatile bool _pendingRecordingStart = false;
@@ -130,6 +165,7 @@ namespace MetaFrame.Data
                 {
                     _lslIP     = ip;
                     _connected = true;
+                    _pendingHostConnectedEvent = true;
                     SendTo($"RECONNECT,{_deviceName}", ip);
                     Debug.Log($"[LSLService] Restored — LSL at {ip}");
                     return;
@@ -189,11 +225,79 @@ namespace MetaFrame.Data
                     long ns = ToUnixNs(DateTime.UtcNow);
                     SendTo($"ACK:{pid}:{ns}", _lslIP);
                 }
+
+                // Fire OnHostConnected on the main thread once after CONNECT
+                // or RECONNECT, so subscribers (LslExperimentRouter) can push
+                // initial READY/STATE without a separate STATE_REQ from LSL.
+                if (_pendingHostConnectedEvent)
+                {
+                    _pendingHostConnectedEvent = false;
+                    Action handshakeHandler = OnHostConnected;
+                    if (handshakeHandler != null)
+                    {
+                        try { handshakeHandler(); }
+                        catch (Exception e)
+                        {
+                            Debug.LogError($"[LSLService] OnHostConnected subscriber threw: {e}");
+                        }
+                    }
+                }
+
+                // Drain experiment-controller messages on the main thread.
+                // We catch per-handler so a buggy subscriber (e.g. router with
+                // a null sequencer ref) doesn't stall the rest of Tick or
+                // future drains.
+                while (_pendingHostMessages.TryDequeue(out string hostMsg))
+                {
+                    Action<string> handler = OnHostMessage;
+                    if (handler == null)
+                    {
+                        // Diagnostic: orphaned message — listen thread got it but
+                        // no subscriber is attached. Means LslExperimentRouter is
+                        // either not in the scene, or its OnEnable hasn't run yet.
+                        Debug.LogWarning(
+                            $"[LSLService] Dropping '{Truncate(hostMsg, 40)}' — " +
+                            "no OnHostMessage subscriber. Check that " +
+                            "LslExperimentRouter is attached to a GameObject in " +
+                            "the active scene.");
+                        continue;
+                    }
+                    Debug.Log($"[LSLService] Dispatching '{Truncate(hostMsg, 40)}' to subscriber.");
+                    try { handler(hostMsg); }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"[LSLService] OnHostMessage subscriber threw on " +
+                                       $"'{Truncate(hostMsg, 40)}': {e}");
+                    }
+                }
             }
             catch (Exception e)
             {
                 Debug.LogWarning($"[LSLService] Tick: {e.Message}");
             }
+        }
+
+        /// <summary>
+        /// Send a message back to the locked LSL host. Safe to call from any
+        /// thread — uses the same _sendLock as the rest of LSLService. No-op
+        /// (with debug log) when no host is locked.
+        /// </summary>
+        public static void SendToHost(string msg)
+        {
+            if (string.IsNullOrEmpty(msg)) return;
+            string ip = _lslIP;
+            if (!_connected || string.IsNullOrEmpty(ip))
+            {
+                Debug.Log($"[LSLService] SendToHost dropped (no host): '{Truncate(msg, 40)}'");
+                return;
+            }
+            SendTo(msg, ip);
+        }
+
+        private static string Truncate(string s, int max)
+        {
+            if (string.IsNullOrEmpty(s)) return s;
+            return s.Length <= max ? s : s.Substring(0, max);
         }
 
         // ── Listen loop ───────────────────────────────────────────────────────
@@ -220,7 +324,13 @@ namespace MetaFrame.Data
                     {
                         _lslIP     = src;
                         _connected = true;
+                        _pendingHostConnectedEvent = true;
                         SendTo($"CONNECTED,{_deviceName}", src);
+                        // Build-identifier LOG so the LSL operator can confirm the
+                        // Quest is running the experiment-routing build. If you
+                        // see this line in the LSL log, the new LSLService.cs is
+                        // active and forwarding SUBJECT_ID/CMD messages.
+                        SendTo($"LOG:LSLService experiment-routing build active (host={src})", src);
                         Debug.Log($"[LSLService] Connected — LSL at {src}");
 #if UNITY_EDITOR
                         SessionState.SetString(SESSION_IP, src);
@@ -259,6 +369,31 @@ namespace MetaFrame.Data
                     else if (msg.StartsWith("ping_"))
                     {
                         _pendingPingId = msg;
+                    }
+                    // Experiment-controller bridge: SUBJECT_ID:, CMD:, STATE_REQ
+                    // are gated to the locked host (same as ping/data) and
+                    // queued for the main thread. We do not parse them here —
+                    // LslExperimentRouter does that on the main thread, where
+                    // it can safely call into ExperimentSequencer/Controller.
+                    else if (_connected && src == _lslIP &&
+                             (msg.StartsWith("SUBJECT_ID:") ||
+                              msg.StartsWith("SUBJECT_ID_OVERRIDE:") ||
+                              msg.StartsWith("CMD:") ||
+                              msg == "STATE_REQ"))
+                    {
+                        // Diagnostic: confirm receipt at the listen-thread level.
+                        // If you don't see this message in the Unity console when
+                        // LSL clicks Confirm, the packet isn't reaching LSLService
+                        // at all (firewall, wrong IP, port collision).
+                        Debug.Log($"[LSLService] Routing experiment msg: '{msg}'");
+                        _pendingHostMessages.Enqueue(msg);
+                    }
+                    // Diagnostic: log any inbound from the locked host that
+                    // we didn't recognise. Common culprit: typo in the LSL-side
+                    // wire format, or LSLService.cs hasn't recompiled.
+                    else if (_connected && src == _lslIP)
+                    {
+                        Debug.Log($"[LSLService] Unrecognised msg from locked host: '{(msg.Length > 60 ? msg.Substring(0, 60) : msg)}'");
                     }
                 }
                 catch (ObjectDisposedException) { break; }
